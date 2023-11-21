@@ -1,10 +1,13 @@
 package hyperloglog
 
 import (
+	"bytes"
+	"encoding/gob"
 	"hash"
 	"hash/fnv"
 	"math"
 	"math/bits"
+	"os"
 )
 
 type HLL struct {
@@ -80,4 +83,51 @@ func (hll *HLL) Prebroj() float64 { // vraca aproksimaciju kardinalnosti koriste
 	}
 
 	return broj
+}
+
+func (hll *HLL) SacuvajHLL(putanja string) {
+	file, err := os.OpenFile(putanja, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		panic(err.Error())
+	}
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(hll)
+}
+
+func UcitajHLL(putanja string) HLL {
+	file, err := os.OpenFile(putanja, os.O_RDONLY, 0666)
+	if err != nil {
+		panic(err.Error())
+	}
+	decoder := gob.NewDecoder(file)
+	var hll = new(HLL)
+	file.Seek(0, 0)
+
+	err = decoder.Decode(hll)
+
+	hll.hasher32 = fnv.New32a()
+	hll.hasher64 = fnv.New64a()
+	return *hll
+}
+
+func (hll HLL) GobEncode() ([]byte, error) {
+	var b bytes.Buffer
+	enc := gob.NewEncoder(&b)
+	err := enc.Encode(hll.m)
+	err = enc.Encode(hll.p)
+	err = enc.Encode(hll.b64)
+	err = enc.Encode(hll.set)
+
+	return b.Bytes(), err
+}
+
+func (hll *HLL) GobDecode(data []byte) error {
+	b := bytes.NewBuffer(data)
+	enc := gob.NewDecoder(b)
+	err := enc.Decode(&hll.m)
+	err = enc.Decode(&hll.p)
+	err = enc.Decode(&hll.b64)
+	err = enc.Decode(&hll.set)
+
+	return err
 }
