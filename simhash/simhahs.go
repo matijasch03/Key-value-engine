@@ -1,7 +1,9 @@
 package simhash
 
 import (
+	"bytes"
 	"crypto/md5"
+	"encoding/gob"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -97,6 +99,29 @@ func ToBinary(s string) string {
 		res = fmt.Sprintf("%s%.8b", res, c)
 	}
 	return res
+}
+
+func (msh *SimHash) SerializeSH() ([]byte, error) {
+	var buff bytes.Buffer
+	encoder := gob.NewEncoder(&buff)
+	err := encoder.Encode(msh)
+	if err != nil {
+		return nil, err
+	}
+	return buff.Bytes(), nil
+}
+
+func DeserializeSH(data []byte) (*SimHash, error) {
+	buff := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(buff)
+	sim := new(SimHash)
+
+	err := decoder.Decode(sim)
+	if err != nil {
+		return nil, err
+	}
+
+	return sim, nil
 }
 
 /*func main() {
