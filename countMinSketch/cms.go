@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	countMinSketch "projekat_nasp/bla"
+	"projekat_nasp/util"
 )
 
 type CountMinSketch struct {
@@ -93,24 +95,31 @@ func ReadGob(filePath string, object interface{}) error {
 	return err
 }
 
-func Nesto() {
-	fileInfo, err := os.Stat("./cms.gob")
+/*
+-test function for cms that 1000 times adds random different keys and 1000 times the same key
+-serialize to test.gob file
+-print the frequency of test object, which should be near 1000
+-deserialize the file and print its content to check the correctness of the serialization
+*/
+func RunExample() {
+	cms := NewCountMinSketch(0.05, 0.99)
+
+	test := util.RandomString(12, 0)
+	for i := 0; i < 1000; i++ {
+		a := util.RandomString(16, i)
+		cms.AddKey(a)
+		cms.AddKey(test)
+	}
+	cms.Print()
+	fmt.Println(cms.FindKeyFrequency(test))
+
+	err := WriteGob("./test.gob", cms)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	if fileInfo.Size() == 0 {
-		cms := NewCountMinSketch(0.05, 0.9)
-		cms.AddKey("key1")
-		cms.Print()
-		err = WriteGob("./cms.gob", cms)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-
-	var newCms = new(CountMinSketch)
-	err = ReadGob("./cms.gob", newCms)
+	var newCms = new(countMinSketch.CountMinSketch)
+	err = ReadGob("./test.gob", newCms)
 	if err != nil {
 		fmt.Println(err)
 	} else {
