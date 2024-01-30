@@ -7,8 +7,13 @@ import (
 
 // SSTable predstavlja strukturu za čuvanje podataka u SSTables
 type SSTable struct {
-	level int
-	data  map[string]string
+	generalFilename string
+	SSTableFilename string
+	indexFilename   string
+	summaryFilename string
+	filterFilename  string
+	level           int
+	data            map[string]string
 }
 
 // LSMTree predstavlja strukturu za čuvanje LSM stabla
@@ -45,7 +50,15 @@ func (stc SizeTieredCompaction) compact(lsm *LSMTree, level int) {
 	if _, exists := lsm.levels[nextLevel]; !exists {
 		lsm.levels[nextLevel] = make([]*SSTable, 0)
 	}
-	newSSTable := &SSTable{level: nextLevel, data: mergedData}
+	newSSTable := &SSTable{
+		level:           nextLevel,
+		data:            mergedData,
+		generalFilename: fmt.Sprintf("general_%d", nextLevel),
+		SSTableFilename: fmt.Sprintf("sstable_%d", nextLevel),
+		indexFilename:   fmt.Sprintf("index_%d", nextLevel),
+		summaryFilename: fmt.Sprintf("summary_%d", nextLevel),
+		filterFilename:  fmt.Sprintf("filter_%d", nextLevel),
+	}
 	lsm.levels[nextLevel] = append(lsm.levels[nextLevel], newSSTable)
 
 	// Briše stare SSTables sa trenutnog nivoa
@@ -68,7 +81,9 @@ func (lc LeveledCompaction) compact(lsm *LSMTree, level int) {
 	fmt.Println("Leveled Compaction - Nivo:", level)
 	for _, sstable := range lsm.levels[level] {
 		// Ispisuje podatke iz svake SSTable na trenutnom nivou
-		fmt.Println("SSTable - Level:", sstable.level, "Data:", sstable.data)
+		fmt.Printf("SSTable - Level: %d, Data: %v, General: %s, SSTable: %s, Index: %s, Summary: %s, Filter: %s\n",
+			sstable.level, sstable.data, sstable.generalFilename, sstable.SSTableFilename,
+			sstable.indexFilename, sstable.summaryFilename, sstable.filterFilename)
 	}
 }
 
@@ -80,7 +95,8 @@ func (lsm *LSMTree) compactLevels(algorithm CompactionAlgorithm, level int) {
 		algorithm.compact(lsm, level)
 	}
 }
-/*
+
+/* Testing 
 func main() {
 	// Inicijalizuje LSM stablo sa maksimalnim brojem nivoa
 	lsm := &LSMTree{
@@ -89,8 +105,24 @@ func main() {
 	}
 
 	// Dodaje neke SSTables na početni nivo
-	sstable1 := &SSTable{level: 0, data: map[string]string{"key1": "value1", "key2": "value2"}}
-	sstable2 := &SSTable{level: 0, data: map[string]string{"key3": "value3", "key4": "value4"}}
+	sstable1 := &SSTable{
+		level:           0,
+		data:            map[string]string{"key1": "value1", "key2": "value2"},
+		generalFilename: "general_file_0",
+		SSTableFilename: "sstable_file_0",
+		indexFilename:   "index_file_0",
+		summaryFilename: "summary_file_0",
+		filterFilename:  "filter_file_0",
+	}
+	sstable2 := &SSTable{
+		level:           0,
+		data:            map[string]string{"key3": "value3", "key4": "value4"},
+		generalFilename: "general_file_1",
+		SSTableFilename: "sstable_file_1",
+		indexFilename:   "index_file_1",
+		summaryFilename: "summary_file_1",
+		filterFilename:  "filter_file_1",
+	}
 	lsm.levels[0] = append(lsm.levels[0], sstable1, sstable2)
 
 	// Odabira algoritam za kompaktiranje (SizeTiered ili Leveled)
@@ -100,9 +132,18 @@ func main() {
 	lsm.compactLevels(selectedAlgorithm, 0)
 
 	// Ispisuje stanje nakon kompaktiranja
-	fmt.Println("Nivo 0 nakon kompaktiranja:", lsm.levels[0])
-	if lsm.levels[1] != nil {
-		fmt.Println("Nivo 1 nakon kompaktiranja:", lsm.levels[1][0].data)
+	fmt.Println("Nivo 0 nakon kompaktiranja:")
+	for _, sstable := range lsm.levels[0] {
+		fmt.Printf("SSTable - Level: %d, Data: %v, General: %s, SSTable: %s, Index: %s, Summary: %s, Filter: %s\n",
+			sstable.level, sstable.data, sstable.generalFilename, sstable.SSTableFilename,
+			sstable.indexFilename, sstable.summaryFilename, sstable.filterFilename)
 	}
-}
-*/
+	if lsm.levels[1] != nil {
+		fmt.Println("Nivo 1 nakon kompaktiranja:")
+		for _, sstable := range lsm.levels[1] {
+			fmt.Printf("SSTable - Level: %d, Data: %v, General: %s, SSTable: %s, Index: %s, Summary: %s, Filter: %s\n",
+			sstable.level, sstable.data, sstable.generalFilename, sstable.SSTableFilename,
+			sstable.indexFilename, sstable.summaryFilename, sstable.filterFilename)
+		}
+	}
+}*/
