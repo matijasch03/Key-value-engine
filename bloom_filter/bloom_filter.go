@@ -3,7 +3,8 @@ package bloomfilter
 import (
 	"hash/fnv"
 	"bytes"
-	"encoding/binary"
+	"encoding/gob"
+	"os"
 )
 
 type BloomFilter struct {
@@ -50,48 +51,47 @@ func createHashFunc(seed int) func(string) int {
 		return int(hash.Sum32() ^ uint32(seed))
 	}
 }
-// MarshalBinary implements the encoding.BinaryMarshaler interface.
-func (b *BloomFilter) MarshalBinary() ([]byte, error) {
+// Serijalizacija BloomFilter-a u bajt niz
+func (b *BloomFilter) Serialize() ([]byte, error) {
 	var buf bytes.Buffer
-
-	// Write size to the buffer
-	if err := binary.Write(&buf, binary.BigEndian, int32(b.size)); err != nil {
+	encoder := gob.NewEncoder(&buf)
+	err := encoder.Encode(b)
+	if err != nil {
 		return nil, err
 	}
-
-	// Write bits to the buffer
-	for _, bit := range b.bits {
-		if err := binary.Write(&buf, binary.BigEndian, bit); err != nil {
-			return nil, err
-		}
-	}
-
 	return buf.Bytes(), nil
 }
 
-// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
-func (b *BloomFilter) UnmarshalBinary(data []byte) error {
+// Deserijalizacija BloomFilter-a iz bajt niza
+func Deserialize(data []byte) (*BloomFilter, error) {
+	var bloom BloomFilter
 	buf := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(buf)
+	err := decoder.Decode(&bloom)
+	if err != nil {
+		return nil, err
+	}
+	return &bloom, nil
+}
 
-	// Read size from the buffer
-	var size int32
-	if err := binary.Read(buf, binary.BigEndian, &size); err != nil {
+// Čuvanje BloomFilter-a u datoteku
+func (b *BloomFilter) SaveToFile(filename string) error {
+	data, err := b.Serialize()
+	if err != nil {
 		return err
 	}
-	b.size = int(size)
-
-	// Read bits from the buffer
-	b.bits = make([]bool, b.size)
-	for i := 0; i < b.size; i++ {
-		var bit bool
-		if err := binary.Read(buf, binary.BigEndian, &bit); err != nil {
-			return err
-		}
-		b.bits[i] = bit
-	}
-
-	return nil
+	return os.WriteFile(filename, data, 0644)
 }
+
+// Učitavanje BloomFilter-a iz datoteke
+func LoadFromFile(filename string) (*BloomFilter, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return Deserialize(data)
+}
+
 
 /*func main() {
 	size := 20
