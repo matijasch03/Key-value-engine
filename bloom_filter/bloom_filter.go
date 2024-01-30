@@ -2,9 +2,9 @@ package bloomfilter
 
 import (
 	"hash/fnv"
-	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"os"
+	"io"
 )
 
 type BloomFilter struct {
@@ -51,48 +51,57 @@ func createHashFunc(seed int) func(string) int {
 		return int(hash.Sum32() ^ uint32(seed))
 	}
 }
-// Serijalizacija BloomFilter-a u bajt niz
+// Serijalizacija BloomFilter-a u bajt niz koristeći JSON
 func (b *BloomFilter) Serialize() ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := gob.NewEncoder(&buf)
-	err := encoder.Encode(b)
+	jsonData, err := json.Marshal(b)
 	if err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return jsonData, nil
 }
 
-// Deserijalizacija BloomFilter-a iz bajt niza
+// Deserijalizacija BloomFilter-a iz bajt niza koristeći JSON
 func Deserialize(data []byte) (*BloomFilter, error) {
 	var bloom BloomFilter
-	buf := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(buf)
-	err := decoder.Decode(&bloom)
+	err := json.Unmarshal(data, &bloom)
 	if err != nil {
 		return nil, err
 	}
 	return &bloom, nil
 }
 
-// Čuvanje BloomFilter-a u datoteku
+// Čuvanje BloomFilter-a u datoteku koristeći JSON
 func (b *BloomFilter) SaveToFile(filename string) error {
 	data, err := b.Serialize()
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filename, data, 0644)
+
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	return err
 }
 
-// Učitavanje BloomFilter-a iz datoteke
+// Učitavanje BloomFilter-a iz datoteke koristeći JSON
 func LoadFromFile(filename string) (*BloomFilter, error) {
-	data, err := os.ReadFile(filename)
+	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+
 	return Deserialize(data)
 }
-
-
 /*func main() {
 	size := 20
 	numHashFuncs := 3
