@@ -1,8 +1,7 @@
-package lsmt
+package main
 
 import (
-	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"sort"
 )
@@ -100,30 +99,23 @@ func (lsm *LSMTree) CompactLevels(algorithm CompactionAlgorithm, level int) {
 
 // Metoda za serijalizaciju LSMTree strukture
 func (lsm *LSMTree) Serialize() ([]byte, error) {
-	var buffer bytes.Buffer
-	encoder := gob.NewEncoder(&buffer)
-
-	err := encoder.Encode(lsm)
+	jsonData, err := json.Marshal(lsm)
 	if err != nil {
 		return nil, fmt.Errorf("Greška prilikom serijalizacije LSMTree: %v", err)
 	}
 
-	return buffer.Bytes(), nil
+	return jsonData, nil
 }
 
 // Metoda za deserijalizaciju LSMTree strukture
 func (lsm *LSMTree) Deserialize(data []byte) error {
-	buffer := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(buffer)
-
-	err := decoder.Decode(lsm)
+	err := json.Unmarshal(data, lsm)
 	if err != nil {
 		return fmt.Errorf("Greška prilikom deserijalizacije LSMTree: %v", err)
 	}
 
 	return nil
 }
-
 /* Testing 
 func main() {
 	// Inicijalizuje LSM stablo sa maksimalnim brojem nivoa
