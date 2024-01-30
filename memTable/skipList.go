@@ -1,4 +1,4 @@
-package skip_list
+package memTable
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ func NewSkipList(maxHeight int) *SkipList {
 	skipList := SkipList{
 		maxHeight: maxHeight,
 		height:    0,
-		Head:      NewSkipListNode("-inf", []byte("-1"), maxHeight),
+		Head:      NewSkipListNode("-inf", MemTableEntry{}, maxHeight),
 		rand:      rand.New(source),
 	}
 	return &skipList
@@ -27,14 +27,14 @@ func NewSkipList(maxHeight int) *SkipList {
 
 type SkipListNode struct {
 	key   string
-	value []byte
+	value *MemTableEntry
 	next  []*SkipListNode
 }
 
-func NewSkipListNode(key string, value []byte, level int) *SkipListNode {
+func NewSkipListNode(key string, value MemTableEntry, level int) *SkipListNode {
 	skipListNode := SkipListNode{
 		key:   key,
-		value: value,
+		value: &value,
 		next:  make([]*SkipListNode, level+1),
 	}
 	return &skipListNode
@@ -52,10 +52,11 @@ func (s *SkipList) roll() int {
 	}
 	return level
 }
-func (s *SkipList) InsertElement(key string, value []byte) {
-	found := s.SearchElement(key)
-	if found != nil {
+func (s *SkipList) InsertElement(key string, value MemTableEntry) bool {
+	_, found := s.SearchElement(key)
+	if found {
 		s.UpdateElement(key, value)
+		return false
 	}
 	update := make([]*SkipListNode, s.maxHeight+1)
 	current := s.Head
@@ -83,10 +84,10 @@ func (s *SkipList) InsertElement(key string, value []byte) {
 			update[i].next[i] = n
 		}
 	}
-
+	return true
 }
 
-func (s *SkipList) SearchElement(key string) []byte {
+func (s *SkipList) SearchElement(key string) (*MemTableEntry, bool) {
 	current := s.Head
 
 	for i := s.maxHeight; i != -1; i-- {
@@ -99,13 +100,13 @@ func (s *SkipList) SearchElement(key string) []byte {
 	current = current.next[0]
 	if current != nil {
 		if current.key == key {
-			return current.value
+			return current.value, true
 		}
 	}
-	return nil
+	return nil, false
 
 }
-func (s *SkipList) UpdateElement(key string, newValue []byte) {
+func (s *SkipList) UpdateElement(key string, newValue MemTableEntry) {
 	current := s.Head
 
 	for i := s.maxHeight; i != -1; i-- {
@@ -118,7 +119,7 @@ func (s *SkipList) UpdateElement(key string, newValue []byte) {
 	current = current.next[0]
 	if current != nil {
 		if current.key == key {
-			current.value = newValue
+			current.value = &newValue
 		}
 	}
 
@@ -144,6 +145,16 @@ func (s *SkipList) GetAll() []SkipListNode {
 	list := make([]SkipListNode, 0)
 	for node != nil {
 		list = append(list, *node)
+		node = node.next[0]
+	}
+	return list
+}
+
+func (s *SkipList) Sort() []MemTableEntry {
+	node := s.Head.next[0]
+	list := make([]MemTableEntry, 0)
+	for node != nil {
+		list = append(list, *node.value)
 		node = node.next[0]
 	}
 	return list
