@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 )
 
 type SSTable struct {
@@ -15,6 +16,63 @@ type SSTable struct {
 	indexFilename   string
 	summaryFilename string
 	filterFilename  string
+}
+
+func (st *SSTable) WriteTOC() {
+	filename := st.generalFilename + "TOC.txt" //table of contents
+	file, err := os.Create(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+
+	_, err = writer.WriteString(st.SSTableFilename + "\n") //1
+	if err != nil {
+		return
+	}
+	_, err = writer.WriteString(st.indexFilename + "\n") //2
+	if err != nil {
+		return
+	}
+	_, err = writer.WriteString(st.summaryFilename + "\n") //3
+	if err != nil {
+		return
+	}
+	_, err = writer.WriteString(st.filterFilename) //4
+	if err != nil {
+		return
+	}
+
+	err = writer.Flush()
+	if err != nil {
+		return
+	}
+}
+
+func readSSTable(filename, level string) (table *SSTable) {
+	filename = "data/sstable/usertable" + filename + "-lev" + level + "-TOC.txt"
+
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+
+	SSTableFilename, _ := reader.ReadString('\n') //1
+	indexFilename, _ := reader.ReadString('\n')   //2
+	summaryFilename, _ := reader.ReadString('\n') //3
+	filterFilename, _ := reader.ReadString('\n')  //4
+	generalFilename := strings.ReplaceAll(SSTableFilename, "Data.db\n", "")
+
+	table = &SSTable{generalFilename: generalFilename,
+		SSTableFilename: SSTableFilename[:len(SSTableFilename)-1], indexFilename: indexFilename[:len(indexFilename)-1],
+		summaryFilename: summaryFilename[:len(summaryFilename)-1], filterFilename: filterFilename}
+
+	return
 }
 
 func CRC32(data []byte) uint32 {
