@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"projekat_nasp/bloom_filter"
+	"projekat_nasp/memTable"
 	"strings"
 )
 
@@ -79,12 +81,12 @@ func CRC32(data []byte) uint32 {
 	return crc32.ChecksumIEEE(data)
 }
 
-func CreateSStable(data memTableEntry, filename string) (table *SSTable) {
+func CreateSStable(data []memTable.MemTableEntry, filename string) (table *SSTable) {
 	generalFilename := "data/sstable/usertable" + filename + "-lev1-" //
 	table = &SSTable{generalFilename, generalFilename + "Data.db", generalFilename + "Index.db",
 		generalFilename + "Summary.db", generalFilename + "Filter.gob"}
 
-	filter := NewBloomFilter(data.Size(), 2)
+	filter := bloom_filter.NewBloomFilter(len(data), 2)
 	keys := make([]string, 0)
 	offset := make([]uint, 0) //position in the data
 	values := make([][]byte, 0)
@@ -98,7 +100,7 @@ func CreateSStable(data memTableEntry, filename string) (table *SSTable) {
 	writer := bufio.NewWriter(file)
 
 	bytesLen := make([]byte, 8)
-	binary.LittleEndian.PutUint64(bytesLen, uint64(data.Size()))
+	binary.LittleEndian.PutUint64(bytesLen, uint64(len(data)))
 	bytesWritten, err := writer.Write(bytesLen)
 	currentOffset += uint(bytesWritten)
 	if err != nil {
@@ -109,15 +111,16 @@ func CreateSStable(data memTableEntry, filename string) (table *SSTable) {
 	if err != nil {
 		return
 	}
-
-	for node := data.data.head.Next[0]; node != nil; node = node.Next[0] {
-		key := node.Key
-		value := node.Value
+	//node := data.data.head.Next[0]; node != nil; node = node.Next[0]
+	for i := 0; i < len(data); i++ {
+		node := data[i]
+		key := node.GetKey()
+		value := node.GetValue()
 		keys = append(keys, key)
 		offset = append(offset, currentOffset)
 		values = append(values, value)
 
-		filter.Add(node)
+		filter.Add(key)
 		crc := CRC32(value)
 		crcBytes := make([]byte, 4)
 		binary.LittleEndian.PutUint32(crcBytes, crc)
@@ -128,9 +131,11 @@ func CreateSStable(data memTableEntry, filename string) (table *SSTable) {
 		}
 
 		//Timestamp
-		timestamp := node.Timestamp
-		timestampBytes := make([]byte, 19)
-		copy(timestampBytes, timestamp)
+		timestamp := node.GetTimeStamp()
+		timestampBytes := make([]byte, 64)
+		binary.LittleEndian.PutUint64(timestampBytes, timestamp)
+
+		//copy(timestampBytes, timestamp)
 
 		bytesWritten, err = writer.Write(timestampBytes)
 		if err != nil {
@@ -139,13 +144,14 @@ func CreateSStable(data memTableEntry, filename string) (table *SSTable) {
 		currentOffset += uint(bytesWritten)
 
 		//Tombstone
-		tombstone := node.Tombstone
-		tombstoneInt := uint8(0)
-		if tombstone {
-			tombstoneInt = 1
-		}
-
-		err = writer.WriteByte(tombstoneInt)
+		tombstone := node.GetTombstone()
+		/*
+			tombstoneInt := uint8(0)
+			if tombstone {
+				tombstoneInt = 1
+			}
+		*/
+		err = writer.WriteByte(tombstone)
 		currentOffset += 1
 		if err != nil {
 			return
@@ -192,7 +198,7 @@ func CreateSStable(data memTableEntry, filename string) (table *SSTable) {
 	index := CreateIndex(keys, offset, table.indexFilename)
 	keys, offsets := index.Write()
 	WriteSummary(keys, offsets, table.summaryFilename)
-	//upis !
+	table.WriteTOC()
 
 	return
 }

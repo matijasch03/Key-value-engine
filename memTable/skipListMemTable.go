@@ -20,6 +20,10 @@ func InitsSkipListMemTable(maxSize uint64, maxHeight int) *skipListMemTable {
 	return &table
 }
 
+func (table *skipListMemTable) Reset() {
+	return
+}
+
 func (table *skipListMemTable) Add(entry MemTableEntry) {
 	added := table.data.InsertElement(entry.key, entry)
 	if added {
@@ -31,7 +35,7 @@ func (table *skipListMemTable) Add(entry MemTableEntry) {
 
 func (table *skipListMemTable) Delete(key string) {
 	entry, _ := table.data.SearchElement(key)
-	entry.tombstone = true
+	entry.tombstone = 1
 }
 
 func (table *skipListMemTable) Find(key string) MemTableEntry {

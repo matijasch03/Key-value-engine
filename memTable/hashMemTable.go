@@ -25,6 +25,10 @@ func InitHashMemTable(maxSize uint64) *hashMemTable {
 	return &table
 }
 
+func (table *hashMemTable) Reset() {
+	return
+}
+
 func (table *hashMemTable) Add(entry MemTableEntry) {
 	key := entry.key
 	_, exists := table.data[key]
@@ -36,7 +40,7 @@ func (table *hashMemTable) Add(entry MemTableEntry) {
 
 func (table *hashMemTable) Delete(key string) {
 	entry := table.data[key]
-	entry.tombstone = true
+	entry.tombstone = 1
 	table.data[key] = entry
 }
 
