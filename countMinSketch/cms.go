@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	countMinSketch "projekat_nasp/bla"
 	"projekat_nasp/util"
 )
 
@@ -118,7 +117,7 @@ func RunExample() {
 		fmt.Println(err)
 	}
 
-	var newCms = new(countMinSketch.CountMinSketch)
+	var newCms = new(CountMinSketch)
 	err = ReadGob("./test.gob", newCms)
 	if err != nil {
 		fmt.Println(err)
