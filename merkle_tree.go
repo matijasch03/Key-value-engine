@@ -3,6 +3,8 @@ package merkletree
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"os"
+	"strconv"
 )
 
 type MerkleRoot struct {
@@ -55,5 +57,30 @@ func MakeNodes(parts []NodeMerkle) []NodeMerkle { //parts - list of nodes
 		return next_gen
 	} else {
 		return MakeNodes(next_gen) //until the root is obtained
+	}
+}
+
+func (n *NodeMerkle) WriteToFile(level int, index int) {
+	file, err := os.OpenFile("Data/merkle_tree_lvl"+strconv.Itoa(level)+"_idx"+strconv.Itoa(index)+".txt", os.O_WRONLY|os.O_CREATE, 0777)
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+
+		}
+	}(file)
+	if err != nil {
+		panic(err)
+	}
+	n.WriteToFileHelper(file)
+}
+
+func (n *NodeMerkle) WriteToFileHelper(file *os.File) {
+	file.Write([]byte(n.String()))
+	file.Write([]byte(";"))
+	if n.left != nil { //preorder
+		n.left.WriteToFileHelper(file)
+	}
+	if n.right != nil {
+		n.right.WriteToFileHelper(file)
 	}
 }
