@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"hash/fnv"
+	"os"
 )
 
 type BloomFilter struct {
@@ -92,6 +93,32 @@ func (b *BloomFilter) UnmarshalBinary(data []byte) error {
 	}
 
 	return nil
+}
+
+func ReadBloomFilter(filename string) (bf *BloomFilter) {
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	var size int32
+	if err := binary.Read(file, binary.BigEndian, &size); err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	bf = NewBloomFilter(int(size), len(bf.hashFunc))
+
+	for i := 0; i < bf.size; i++ {
+		var bit bool
+		if err := binary.Read(file, binary.BigEndian, &bit); err != nil {
+			panic(err)
+		}
+		bf.bits[i] = bit
+	}
+
+	return bf
 }
 
 /*func main() {
