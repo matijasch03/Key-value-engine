@@ -153,3 +153,161 @@ func WriteSummary(keys []string, offsets []uint, filename string) {
 		}
 	}
 }
+
+func FindSummary(key, filename string) (ok bool, offset int64) {
+	ok = false
+	offset = int64(8)
+
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+
+	bytes := make([]byte, 8)
+	_, err = reader.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	fileLen := binary.LittleEndian.Uint64(bytes)
+
+	//start Key
+	bytes = make([]byte, 8)
+	_, err = reader.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	keyLen := binary.LittleEndian.Uint64(bytes)
+
+	bytes = make([]byte, keyLen)
+	_, err = reader.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	startKey := string(bytes[:])
+
+	if key < startKey {
+		return false, 0
+	}
+
+	//end Key
+	bytes = make([]byte, 8)
+	_, err = reader.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	keyLen = binary.LittleEndian.Uint64(bytes)
+
+	bytes = make([]byte, keyLen)
+	_, err = reader.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	endKey := string(bytes[:])
+
+	if key > endKey {
+		return false, 0
+	}
+
+	ok = true
+	var i uint64
+	for i = 0; i < fileLen-2; i++ {
+		good := false
+		bytes := make([]byte, 8)
+		_, err = reader.Read(bytes)
+		if err != nil {
+			panic(err)
+		}
+		keyLen := binary.LittleEndian.Uint64(bytes)
+
+		bytes = make([]byte, keyLen)
+		_, err = reader.Read(bytes)
+		if err != nil {
+			panic(err)
+		}
+		nodeKey := string(bytes[:])
+
+		if nodeKey <= key {
+			good = true
+		}
+
+		bytes = make([]byte, 8)
+		_, err = reader.Read(bytes)
+		if err != nil {
+			panic(err)
+		}
+		newOffset := binary.LittleEndian.Uint64(bytes)
+
+		if good {
+			offset = int64(newOffset)
+		} else if !good {
+			break
+		}
+	}
+	return
+}
+
+func FindIndex(key string, offset int64, filename string) (ok bool, dataOffset int64) {
+	ok = false
+	dataOffset = 0
+
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	bytes := make([]byte, 8)
+	_, err = reader.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	fileLen := binary.LittleEndian.Uint64(bytes)
+
+	_, err = file.Seek(offset, 0)
+	if err != nil {
+		return false, 0
+	}
+
+	reader = bufio.NewReader(file)
+
+	var i uint64
+	for i = 0; i < fileLen; i++ {
+		bytes := make([]byte, 8)
+		_, err = reader.Read(bytes)
+		if err != nil {
+			panic(err)
+		}
+		keyLen := binary.LittleEndian.Uint64(bytes)
+
+		bytes = make([]byte, keyLen)
+		_, err = reader.Read(bytes)
+		if err != nil {
+			panic(err)
+		}
+		nodeKey := string(bytes[:])
+
+		if nodeKey == key {
+			ok = true
+		} else if nodeKey > key {
+			return false, 0
+		}
+
+		bytes = make([]byte, 8)
+		_, err = reader.Read(bytes)
+		if err != nil {
+			panic(err)
+		}
+		newOffset := binary.LittleEndian.Uint64(bytes)
+
+		if ok {
+			dataOffset = int64(newOffset)
+			break
+		}
+	}
+
+	return
+}

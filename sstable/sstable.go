@@ -3,12 +3,14 @@ package sstable
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"hash/crc32"
 	"io"
 	"log"
 	"os"
 	"projekat_nasp/bloom_filter"
 	"projekat_nasp/memTable"
+	"strconv"
 	"strings"
 )
 
@@ -299,4 +301,70 @@ func (st *SSTable) SStableFind(key string, offset int64) (validator bool, value 
 	}
 	file.Close()
 	return validator, value, timestamp
+}
+
+func (st *SSTable) SSTableQuery(key string) (ok bool, value []byte, timestamp string) { //za ključ
+	ok = false
+	value = nil
+	bf := ReadBloomFilter(st.filterFilename)
+	ok = bf.Query(key)
+	if ok {
+		ok, offset := FindSummary(key, st.summaryFilename)
+		if ok {
+			ok, offset = FindIndex(key, offset, st.indexFilename)
+			if ok {
+				ok, value, timestamp = st.SStableFind(key, offset)
+				if ok {
+					return true, value, timestamp
+				}
+			}
+		}
+	}
+	return false, nil, ""
+}
+
+func findSSTableFilename(level string) (filename string) {
+	filenameNum := 1
+	filename = strconv.Itoa(filenameNum)
+	possibleFilename := "./data/sstable/usertable" + filename + "-lev" + level + "-TOC.txt"
+
+	for {
+		_, err := os.Stat(possibleFilename)
+		if err == nil {
+			filenameNum += 1
+			filename = strconv.Itoa(filenameNum)
+		} else if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+		possibleFilename = "./data/sstable/usertable" + filename + "-lev" + level + "-TOC.txt"
+	}
+
+}
+
+func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []byte) {
+	oldTimestamp := ""
+	found = false
+	levelNum := maxLevels
+	for ; levelNum >= 1; levelNum-- {
+		level := strconv.Itoa(levelNum)
+		maxFilename := findSSTableFilename(level)
+		maxFilenameNum, _ := strconv.Atoi(maxFilename)
+		filenameNum := maxFilenameNum - 1
+		for ; filenameNum > 0; filenameNum-- {
+			filename := strconv.Itoa(filenameNum)
+			table := readSSTable(filename, level)
+			ok, value, timestamp := table.SSTableQuery(key)
+			if oldTimestamp == "" && ok {
+				oldTimestamp = timestamp
+				found = true
+				oldValue = value
+			} else if oldTimestamp != "" && ok {
+				if timestamp > oldTimestamp {
+					oldValue = value
+					found = true
+				}
+			}
+		}
+	}
+	return
 }
