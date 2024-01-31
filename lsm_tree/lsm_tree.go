@@ -1,9 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
+	"encoding/gob"
+	"bytes"
+	"io/ioutil"
 )
 
 // SSTable predstavlja strukturu za čuvanje podataka u SSTables
@@ -97,97 +99,105 @@ func (lsm *LSMTree) CompactLevels(algorithm CompactionAlgorithm, level int) {
 	}
 }
 
-// Metoda za serijalizaciju LSMTree strukture
+// Metoda za serijalizaciju LSMTree strukture pomoću Goba
 func (lsm *LSMTree) Serialize() ([]byte, error) {
-	jsonData, err := json.Marshal(lsm)
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+
+	err := encoder.Encode(lsm)
 	if err != nil {
-		return nil, fmt.Errorf("Greška prilikom serijalizacije LSMTree: %v", err)
+		return nil, fmt.Errorf("Greška prilikom GobEncode: %v", err)
 	}
 
-	return jsonData, nil
+	return buf.Bytes(), nil
 }
 
-// Metoda za deserijalizaciju LSMTree strukture
+// Metoda za deserijalizaciju LSMTree strukture pomoću Goba
 func (lsm *LSMTree) Deserialize(data []byte) error {
-	err := json.Unmarshal(data, lsm)
+	buf := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(buf)
+
+	err := decoder.Decode(lsm)
 	if err != nil {
-		return fmt.Errorf("Greška prilikom deserijalizacije LSMTree: %v", err)
+		return fmt.Errorf("Greška prilikom GobDecode: %v", err)
 	}
 
 	return nil
 }
-/* Testing 
-func main() {
-	// Inicijalizuje LSM stablo sa maksimalnim brojem nivoa
-	lsm := &LSMTree{
-		MaxLevels: 3,
-		Levels:    make(map[int][]*SSTable),
-	}
 
-	// Dodaje neke SSTables na početni nivo
-	sstable1 := &SSTable{
-		Level:           0,
-		Data:            map[string]string{"key1": "value1", "key2": "value2"},
-		GeneralFilename: "general_file_0",
-		SSTableFilename: "sstable_file_0",
-		IndexFilename:   "index_file_0",
-		SummaryFilename: "summary_file_0",
-		FilterFilename:  "filter_file_0",
-	}
-	sstable2 := &SSTable{
-		Level:           0,
-		Data:            map[string]string{"key3": "value3", "key4": "value4"},
-			GeneralFilename: "general_file_1",
-			SSTableFilename: "sstable_file_1",
-			IndexFilename:   "index_file_1",
-			SummaryFilename: "summary_file_1",
-			FilterFilename:  "filter_file_1",
-	}
-	lsm.Levels[0] = append(lsm.Levels[0], sstable1, sstable2)
-
-	// Odabira algoritam za kompaktiranje (SizeTiered ili Leveled)
-	selectedAlgorithm := SizeTieredCompaction{} // Možete promeniti na LeveledCompaction{} ako želite leveled algoritam
-
-	// Pokreće kompaktiranje nivoa sa odabranim algoritmom
-	lsm.CompactLevels(selectedAlgorithm, 0)
-
-	// Ispisuje stanje nakon kompaktiranja
-	fmt.Println("Nivo 0 nakon kompaktiranja:")
-	for _, sstable := range lsm.Levels[0] {
-		fmt.Printf("SSTable - Level: %d, Data: %v, General: %s, SSTable: %s, Index: %s, Summary: %s, Filter: %s\n",
-			sstable.Level, sstable.Data, sstable.GeneralFilename, sstable.SSTableFilename,
-			sstable.IndexFilename, sstable.SummaryFilename, sstable.FilterFilename)
-	}
-	if lsm.Levels[1] != nil {
-		fmt.Println("Nivo 1 nakon kompaktiranja:")
-		for _, sstable := range lsm.Levels[1] {
-			fmt.Printf("SSTable - Level: %d, Data: %v, General: %s, SSTable: %s, Index: %s, Summary: %s, Filter: %s\n",
-			sstable.Level, sstable.Data, sstable.GeneralFilename, sstable.SSTableFilename,
-			sstable.IndexFilename, sstable.SummaryFilename, sstable.FilterFilename)
-		}
-	}
-}*/
-/* Primer korišćenja serijalizacije i deserijalizacije
-func main() {
-	// Kreiranje instance LSMTree
-	lsm := &LSMTree{
-		MaxLevels: 3,
-		Levels:    make(map[int][]*SSTable),
-	}
-
-	// Serijalizacija LSMTree
-	serializedData, err := lsm.Serialize()
+// Metoda za čuvanje LSMTree strukture u datoteku
+func (lsm *LSMTree) SaveToFile(filename string) error {
+	data, err := lsm.Serialize()
 	if err != nil {
-		fmt.Println("Greška prilikom serijalizacije:", err)
-		return
+		return err
 	}
 
-	// Deserijalizacija LSMTree
-	deserializedLSM := &LSMTree{}
-	err = deserializedLSM.Deserialize(serializedData)
+	err = ioutil.WriteFile(filename, data, 0644)
 	if err != nil {
-		fmt.Println("Greška prilikom deserijalizacije:", err)
-		return
+		return fmt.Errorf("Greška prilikom pisanja u datoteku: %v", err)
 	}
+
+	return nil
 }
-*/
+
+// Metoda za učitavanje LSMTree strukture iz datoteke
+func (lsm *LSMTree) LoadFromFile(filename string) error {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("Greška prilikom čitanja iz datoteke: %v", err)
+	}
+
+	err = lsm.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+// Funkcija za dodavanje podataka u LSMTree
+func (lsm *LSMTree) AddData(level int, key, value string) {
+	// Proverava da li postoji nivo, ako ne, inicijalizuje ga
+	if _, exists := lsm.Levels[level]; !exists {
+		lsm.Levels[level] = make([]*SSTable, 0)
+	}
+
+	// Proverava da li postoji SSTable za dati nivo, ako ne, inicijalizuje ga
+	if len(lsm.Levels[level]) == 0 || lsm.Levels[level][len(lsm.Levels[level])-1].Level != level {
+		sstable := &SSTable{
+			Level: level,
+			Data:  make(map[string]string),
+			// Dodajte ostale informacije za SSTable...
+		}
+		lsm.Levels[level] = append(lsm.Levels[level], sstable)
+	}
+
+	// Dodaje podatke u mapu Data unutar SSTable
+	sstable := lsm.Levels[level][len(lsm.Levels[level])-1]
+	sstable.Data[key] = value
+}
+
+// Primer korišćenja:
+func main() {
+	lsm := &LSMTree{
+		MaxLevels: 3,
+		Levels:    make(map[int][]*SSTable),
+	}
+
+	// Čuvanje u datoteku
+	err := lsm.SaveToFile("lsm_tree.gob")
+	if err != nil {
+		fmt.Println("Greška prilikom čuvanja u datoteku:", err)
+		return
+	}
+
+	// Učitavanje iz datoteke
+	lsm2 := &LSMTree{}
+	err = lsm2.LoadFromFile("lsm_tree.gob")
+	if err != nil {
+		fmt.Println("Greška prilikom učitavanja iz datoteke:", err)
+		return
+	}
+
+	// Ispisivanje učitanih podataka
+	fmt.Println("Učitani LSMTree:", lsm2)
+}
