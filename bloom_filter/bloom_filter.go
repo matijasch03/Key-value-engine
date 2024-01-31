@@ -1,9 +1,9 @@
-package bloomfilter
+package bloom_filter
 
 import (
-	"hash/fnv"
 	"bytes"
 	"encoding/binary"
+	"hash/fnv"
 )
 
 type BloomFilter struct {
@@ -50,6 +50,7 @@ func createHashFunc(seed int) func(string) int {
 		return int(hash.Sum32() ^ uint32(seed))
 	}
 }
+
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (b *BloomFilter) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer

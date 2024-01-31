@@ -1,6 +1,8 @@
 package memTable
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type memTable interface {
 	IsFull() bool
@@ -8,14 +10,28 @@ type memTable interface {
 	Find(key string) MemTableEntry
 	Delete(key string)
 	Sort() []MemTableEntry
+	Reset()
 	Print()
 }
 
 type MemTableEntry struct {
 	key       string
 	value     []byte
-	tombstone bool
+	tombstone byte
 	timestamp uint64
+}
+
+func (entry *MemTableEntry) GetKey() string {
+	return entry.key
+}
+func (entry *MemTableEntry) GetValue() []byte {
+	return entry.value
+}
+func (entry *MemTableEntry) GetTimeStamp() uint64 {
+	return entry.timestamp
+}
+func (entry *MemTableEntry) GetTombstone() byte {
+	return entry.tombstone
 }
 
 type memTableEntrySlice []MemTableEntry
@@ -24,11 +40,11 @@ func (s memTableEntrySlice) Len() int           { return len(s) }
 func (s memTableEntrySlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s memTableEntrySlice) Less(i, j int) bool { return s[i].key < s[j].key }
 
-func NewMemTableEntry(key string) MemTableEntry {
+func NewMemTableEntry(key string, value []byte) MemTableEntry {
 	entry := MemTableEntry{
 		key,
-		make([]byte, 0),
-		false,
+		value,
+		0,
 		123,
 	}
 	return entry
@@ -79,17 +95,22 @@ func InitMemTablesSkipList(maxInstances int, maxSize uint64, maxHeight int) memT
 	return memTables
 }
 
-func (memTables *memTablesManager) Add(entry MemTableEntry) {
+func (memTables *memTablesManager) Add(entry MemTableEntry) []MemTableEntry {
 	activeTable := memTables.tables[memTables.active]
 	activeTable.Add(entry)
 	if activeTable.IsFull() {
 		if memTables.active == memTables.maxInstances-1 {
-			memTables.Flush()
+			sorted := memTables.Sort()
+			for i := 0; i < memTables.maxInstances; i++ {
+				memTables.tables[i].Reset()
+			}
 			memTables.active = 0
+			return sorted
 		} else {
 			memTables.active += 1
 		}
 	}
+	return nil
 }
 
 func (memTables *memTablesManager) Delete(key string) {
@@ -133,11 +154,13 @@ func (memTables *memTablesManager) Sort() []MemTableEntry {
 	return sortedAll
 }
 
-func (memTables *memTablesManager) Flush() {
-	fmt.Println("pusti pusti vodu")
-	return
-}
-
+/*
+	func (memTables *memTablesManager) Flush() {
+		sstable := sstable.CreateSStable(memTables.Sort(), "file1")
+		fmt.Println(sstable)
+		return
+	}
+*/
 func (memTables *memTablesManager) Print() {
 	for i := 0; i < memTables.maxInstances; i++ {
 		fmt.Printf("Tabela %d : \n", i)

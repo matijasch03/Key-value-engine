@@ -66,7 +66,6 @@ func (tree *bTree) EmptyNode() bTreeNode {
 func (tree *bTree) Find(key string) *MemTableEntry {
 	current := tree.root
 	for true {
-		fmt.Println(current)
 		if len(current.children) == 0 {
 			break
 		}

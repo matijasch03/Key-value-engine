@@ -20,6 +20,11 @@ func InitBTreeMemTable(maxSize uint64, order uint8) *bTreeMemTable {
 	return &table
 }
 
+func (table *bTreeMemTable) Reset() {
+	table.data = InitBTree(table.data.order)
+	table.currentSize = 0
+}
+
 func (table *bTreeMemTable) Add(entry MemTableEntry) {
 	added := table.data.Insert(entry)
 	if added {
@@ -30,12 +35,15 @@ func (table *bTreeMemTable) Add(entry MemTableEntry) {
 func (table *bTreeMemTable) Delete(key string) {
 	entry := table.data.Find(key)
 	if entry != nil {
-		entry.tombstone = true
+		entry.tombstone = 1
 	}
 }
 
 func (table *bTreeMemTable) Find(key string) MemTableEntry {
 	entry := table.data.Find(key)
+	if entry == nil {
+		return MemTableEntry{}
+	}
 	return *entry
 }
 
