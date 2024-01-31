@@ -200,6 +200,7 @@ func CreateSStable(data []memTable.MemTableEntry, filename string) (table *SSTab
 	index := CreateIndex(keys, offset, table.indexFilename)
 	keys, offsets := index.Write()
 	WriteSummary(keys, offsets, table.summaryFilename)
+	filter.SaveToFile(table.filterFilename)
 	table.WriteTOC()
 
 	return
@@ -306,8 +307,8 @@ func (st *SSTable) SStableFind(key string, offset int64) (validator bool, value 
 func (st *SSTable) SSTableQuery(key string) (ok bool, value []byte, timestamp string) { //za ključ
 	ok = false
 	value = nil
-	bf := ReadBloomFilter(st.filterFilename)
-	ok = bf.Query(key)
+	bf, _ := bloom_filter.LoadFromFile(st.filterFilename)
+	ok = bf.Contains(key)
 	if ok {
 		ok, offset := FindSummary(key, st.summaryFilename)
 		if ok {
