@@ -103,7 +103,7 @@ func (index *SSIndex) Write() (keys []string, offsets []uint) {
 	return
 }
 
-func WriteSummary(keys []string, offsets []uint, filename string) {
+/*func WriteSummary(keys []string, offsets []uint, filename string) {
 	file, err := os.Create(filename)
 	if err != nil {
 		return
@@ -150,6 +150,57 @@ func WriteSummary(keys []string, offsets []uint, filename string) {
 		err = writer.Flush()
 		if err != nil {
 			return
+		}
+	}
+}*/
+
+func WriteSummary(keys []string, offsets []uint, filename string, step int) {
+	file, err := os.Create(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+
+	fileLen := uint64(len(keys))
+	bytesLen := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytesLen, fileLen)
+	if _, err := writer.Write(bytesLen); err != nil {
+		log.Fatal(err)
+	}
+
+	for i := range keys {
+		key := keys[i]
+		offset := offsets[i]
+
+		// Dodajte proveru koraka proređenosti
+		if i%step != 0 {
+			continue
+		}
+
+		bytes := []byte(key)
+
+		keyLen := uint64(len(bytes))
+		binary.LittleEndian.PutUint64(bytesLen, keyLen)
+		if _, err := writer.Write(bytesLen); err != nil {
+			log.Fatal(err)
+		}
+
+		if _, err := writer.Write(bytes); err != nil {
+			log.Fatal(err)
+		}
+
+		if i >= 2 {
+			bytes = make([]byte, 8)
+			binary.LittleEndian.PutUint64(bytes, uint64(offset))
+			if _, err := writer.Write(bytes); err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		if err := writer.Flush(); err != nil {
+			log.Fatal(err)
 		}
 	}
 }
