@@ -1,11 +1,11 @@
-package main
+package lsm_tree
 
 import (
 	"fmt"
 	"sort"
 	"encoding/gob"
 	"bytes"
-	"io/ioutil"
+	"os"
 )
 
 // SSTable predstavlja strukturu za čuvanje podataka u SSTables
@@ -132,7 +132,7 @@ func (lsm *LSMTree) SaveToFile(filename string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(filename, data, 0644)
+	err = os.WriteFile(filename, data, 0644)
 	if err != nil {
 		return fmt.Errorf("Greška prilikom pisanja u datoteku: %v", err)
 	}
@@ -142,7 +142,7 @@ func (lsm *LSMTree) SaveToFile(filename string) error {
 
 // Metoda za učitavanje LSMTree strukture iz datoteke
 func (lsm *LSMTree) LoadFromFile(filename string) error {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("Greška prilikom čitanja iz datoteke: %v", err)
 	}
@@ -176,7 +176,7 @@ func (lsm *LSMTree) AddData(level int, key, value string) {
 	sstable.Data[key] = value
 }
 
-// Primer korišćenja:
+/* Primer korišćenja:
 func main() {
 	lsm := &LSMTree{
 		MaxLevels: 3,
@@ -200,4 +200,4 @@ func main() {
 
 	// Ispisivanje učitanih podataka
 	fmt.Println("Učitani LSMTree:", lsm2)
-}
+}*/
