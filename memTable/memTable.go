@@ -119,9 +119,14 @@ func (memTables *memTablesManager) Delete(key string) {
 }
 
 func (memTables *memTablesManager) Find(key string) MemTableEntry {
-	activeTable := memTables.tables[memTables.active]
-	found := activeTable.Find(key)
-	return found
+	for i := 0; i < memTables.maxInstances; i++ {
+		activeTable := memTables.tables[i]
+		found := activeTable.Find(key)
+		if found.key == key {
+			return found
+		}
+	}
+	return MemTableEntry{}
 }
 
 func (memTables *memTablesManager) Sort() []MemTableEntry {
