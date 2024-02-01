@@ -32,14 +32,21 @@ func NewCache(maxLength int) *Cache {
 func (cache *Cache) AddItem(key string, value interface{}) {
 
 	// 1. case: the object that should be added already exists in cache
-	for k, _ := range cache.MapItems {
-		if k == key {
-			currentElement := findByValue(cache.ListLRU, value)
-			cache.ListLRU.MoveToFront(currentElement)
-			// cache.ListLRU.MoveToFront(value.(*list.Element))
-			// unsuccessfully - string or some other type and *list.Element are different types
-			return
+	currentValue, exist := cache.MapItems[key]
+	if exist {
+		currentElement := findByValue(cache.ListLRU, currentValue)
+		cache.ListLRU.MoveToFront(currentElement)
+		// cache.ListLRU.MoveToFront(value.(*list.Element))
+		// unsuccessfully - string or some other type and *list.Element are different types
+
+		// updating existing object (same key, different value)
+		if currentValue != value {
+			first := cache.ListLRU.Front()
+			cache.ListLRU.Remove(first)
+			cache.ListLRU.PushFront(value)
+			cache.MapItems[key] = value
 		}
+		return
 	}
 
 	// 2. case: add new object (simply push front)
@@ -73,15 +80,25 @@ func findByValue(listLRU *list.List, value interface{}) *list.Element {
 // iterate through the map and try to find by key
 // return: (value, true) if exists, else (nil, false)
 func (cache *Cache) GetByKey(key string) (bool, interface{}) {
-	for k := range cache.MapItems {
-		if k == key {
-			// each read element should be put on the start as the newest
-			movingElem := findByValue(cache.ListLRU, cache.MapItems[key])
-			cache.ListLRU.MoveToFront(movingElem)
-			return true, cache.MapItems[key]
-		}
+	value, exist := cache.MapItems[key]
+	if exist {
+		// each read element should be put on the start as the newest
+		movingElem := findByValue(cache.ListLRU, value)
+		cache.ListLRU.MoveToFront(movingElem)
+		return true, cache.MapItems[key]
 	}
 	return false, nil
+}
+
+// delete object when it's deleted in some other structure (SSTable)
+func (cache *Cache) DeleteByKey(key string) {
+	elem, exist := cache.MapItems[key]
+	if !exist {
+		return
+	}
+
+	delete(cache.MapItems, key)
+	cache.ListLRU.Remove(findByValue(cache.ListLRU, elem))
 }
 
 // print elements from the cache list from the newest to the oldest
@@ -94,6 +111,23 @@ func (cache *Cache) Print() {
 
 func TestCache() {
 	cache := NewCache(10)
+
+	//cache.AddItem("1", 1)
+	//cache.AddItem("2", 2)
+	//cache.AddItem("5", 4)
+	//cache.AddItem("2", 2)
+	//cache.AddItem("3", 3)
+	//cache.AddItem("4", 4)
+	//
+	//fmt.Println(cache.GetByKey("1"))
+	//fmt.Println(cache.GetByKey("3"))
+	//fmt.Println(cache.GetByKey("6"))
+	//cache.Print()
+	//
+	//cache.DeleteByKey("4")
+	//cache.DeleteByKey("4")
+	//cache.Print()
+
 	for i := 0; i < 40; i++ {
 		key := util.RandomString(1, i)
 		fmt.Println("Element to add:", key)
