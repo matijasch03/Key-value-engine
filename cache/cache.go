@@ -20,7 +20,7 @@ type Cache struct {
 	ListLRU   *list.List // double-linked list from imported library
 }
 
-func NewCache(maxLength int) *Cache {
+func NewCache(maxLength int) *Cache { 
 	return &Cache{
 		MaxLength: maxLength,
 		Length:    0,
