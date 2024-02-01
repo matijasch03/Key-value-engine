@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	config "projekat_nasp/configWal"
+	"projekat_nasp/memTable"
+	"projekat_nasp/sstable"
 	"sort"
 	"strconv"
 )
@@ -129,7 +131,7 @@ func (wal *Wal) DeleteSegments() {
 
 }
 
-func (wal *Wal) Recovery() {
+func (wal *Wal) Recovery(table memTable.MemTablesManager) {
 
 	files, _ := os.ReadDir(wal.Path + string(os.PathSeparator))
 	fileCount := len(files)
@@ -155,6 +157,10 @@ func (wal *Wal) Recovery() {
 			}
 			fmt.Println(walEntry.Validate())
 			wal.Write(string(walEntry.Key), walEntry.Value, walEntry.Tombstone)
+			full := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
+			if full != nil {
+				sstable.CreateSStable(full, "file") // treba ustanoviti kako se TACNO nazivaju sstable fajlovi
+			}
 		}
 
 	}

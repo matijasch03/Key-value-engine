@@ -4,7 +4,11 @@ import (
 	"fmt"
 )
 
-type memTable interface {
+/*
+Interface for the memTable type.
+Btree, skipList and hashMap memtables all implement these methods
+*/
+type MemTable interface {
 	IsFull() bool
 	Add(entry MemTableEntry)
 	Find(key string) MemTableEntry
@@ -34,34 +38,36 @@ func (entry *MemTableEntry) GetTombstone() byte {
 	return entry.tombstone
 }
 
+// Added for Sort()
 type memTableEntrySlice []MemTableEntry
 
 func (s memTableEntrySlice) Len() int           { return len(s) }
 func (s memTableEntrySlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s memTableEntrySlice) Less(i, j int) bool { return s[i].key < s[j].key }
 
-func NewMemTableEntry(key string, value []byte) MemTableEntry {
+func NewMemTableEntry(key string, value []byte, tombstone byte, timestamp uint64) MemTableEntry {
 	entry := MemTableEntry{
 		key,
 		value,
-		0,
-		123,
+		tombstone,
+		timestamp,
 	}
 	return entry
 }
 
-type memTablesManager struct {
-	tables       []memTable
+// Manages instances of mem tables
+type MemTablesManager struct {
+	tables       []MemTable
 	maxInstances int
 	active       int
 }
 
-func InitMemTablesHash(maxInstances int, maxSize uint64) memTablesManager {
-	tables := make([]memTable, maxInstances)
+func InitMemTablesHash(maxInstances int, maxSize uint64) MemTablesManager {
+	tables := make([]MemTable, maxInstances)
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitHashMemTable(maxSize)
 	}
-	memTables := memTablesManager{
+	memTables := MemTablesManager{
 		tables,
 		maxInstances,
 		0,
@@ -69,12 +75,12 @@ func InitMemTablesHash(maxInstances int, maxSize uint64) memTablesManager {
 	return memTables
 }
 
-func InitMemTablesBTree(maxInstances int, maxSize uint64, order uint8) memTablesManager {
-	tables := make([]memTable, maxInstances)
+func InitMemTablesBTree(maxInstances int, maxSize uint64, order uint8) MemTablesManager {
+	tables := make([]MemTable, maxInstances)
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitBTreeMemTable(maxSize, order)
 	}
-	memTables := memTablesManager{
+	memTables := MemTablesManager{
 		tables,
 		maxInstances,
 		0,
@@ -82,12 +88,12 @@ func InitMemTablesBTree(maxInstances int, maxSize uint64, order uint8) memTables
 	return memTables
 }
 
-func InitMemTablesSkipList(maxInstances int, maxSize uint64, maxHeight int) memTablesManager {
-	tables := make([]memTable, maxInstances)
+func InitMemTablesSkipList(maxInstances int, maxSize uint64, maxHeight int) MemTablesManager {
+	tables := make([]MemTable, maxInstances)
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitsSkipListMemTable(maxSize, maxHeight)
 	}
-	memTables := memTablesManager{
+	memTables := MemTablesManager{
 		tables,
 		maxInstances,
 		0,
@@ -95,16 +101,14 @@ func InitMemTablesSkipList(maxInstances int, maxSize uint64, maxHeight int) memT
 	return memTables
 }
 
-func (memTables *memTablesManager) Add(entry MemTableEntry) []MemTableEntry {
+// Adds entry to active memTable, if all are full returns them sorted as a sign to flush to SSTable
+func (memTables *MemTablesManager) Add(entry MemTableEntry) []MemTableEntry {
 	activeTable := memTables.tables[memTables.active]
 	activeTable.Add(entry)
 	if activeTable.IsFull() {
 		if memTables.active == memTables.maxInstances-1 {
 			sorted := memTables.Sort()
-			for i := 0; i < memTables.maxInstances; i++ {
-				memTables.tables[i].Reset()
-			}
-			memTables.active = 0
+			memTables.Reset()
 			return sorted
 		} else {
 			memTables.active += 1
@@ -113,28 +117,35 @@ func (memTables *memTablesManager) Add(entry MemTableEntry) []MemTableEntry {
 	return nil
 }
 
-func (memTables *memTablesManager) Delete(key string) {
+// Resets all memtables to empty them after sort
+func (memTables *MemTablesManager) Reset() {
+	for i := 0; i < memTables.maxInstances; i++ {
+		memTables.tables[i].Reset()
+	}
+	memTables.active = 0
+}
+
+func (memTables *MemTablesManager) Delete(key string) {
 	activeTable := memTables.tables[memTables.active]
 	activeTable.Delete(key)
 }
 
-func (memTables *memTablesManager) Find(key string) MemTableEntry {
+func (memTables *MemTablesManager) Find(key string) (bool, MemTableEntry) {
 	for i := 0; i < memTables.maxInstances; i++ {
 		activeTable := memTables.tables[i]
 		found := activeTable.Find(key)
-		if found.key == key {
-			return found
+		if found.key != "" {
+			return true, found
 		}
 	}
-	return MemTableEntry{}
+	return false, MemTableEntry{}
 }
 
-func (memTables *memTablesManager) Sort() []MemTableEntry {
+// Sorts content of all tables and merges them to the slice already sorted
+func (memTables *MemTablesManager) Sort() []MemTableEntry {
 	var sortedAll []MemTableEntry
 	for i := 0; i < memTables.maxInstances; i++ {
 		sorted := memTables.tables[i].Sort()
-		fmt.Printf("Tabela %d : \n", i)
-		fmt.Println(sorted)
 		sortedNew := make([]MemTableEntry, 0, len(sortedAll)+len(sorted))
 		n, m := 0, 0
 		for n < len(sortedAll) && m < len(sorted) {
@@ -158,65 +169,12 @@ func (memTables *memTablesManager) Sort() []MemTableEntry {
 	}
 	return sortedAll
 }
-
-/*
-	func (memTables *memTablesManager) Flush() {
-		sstable := sstable.CreateSStable(memTables.Sort(), "file1")
-		fmt.Println(sstable)
-		return
-	}
-*/
-func (memTables *memTablesManager) Print() {
+func (memTables *MemTablesManager) IsFull() bool {
+	return false
+}
+func (memTables *MemTablesManager) Print() {
 	for i := 0; i < memTables.maxInstances; i++ {
 		fmt.Printf("Tabela %d : \n", i)
 		memTables.tables[i].Print()
 	}
 }
-
-/*
-	entry := memTable.NewMemTableEntry("abc")
-	entry2 := memTable.NewMemTableEntry("bbc")
-	entry3 := memTable.NewMemTableEntry("cbc")
-	entry4 := memTable.NewMemTableEntry("dbc")
-	entry5 := memTable.NewMemTableEntry("aac")
-	entry6 := memTable.NewMemTableEntry("aaa")
-	entry7 := memTable.NewMemTableEntry("bac")
-	entry8 := memTable.NewMemTableEntry("bag")
-	entry9 := memTable.NewMemTableEntry("ggg")
-	entry10 := memTable.NewMemTableEntry("bba")
-	entry11 := memTable.NewMemTableEntry("bad")
-	entry12 := memTable.NewMemTableEntry("bbb")
-	entry13 := memTable.NewMemTableEntry("bae")
-	entry14 := memTable.NewMemTableEntry("gae")
-	entry15 := memTable.NewMemTableEntry("gxx")
-	entry16 := memTable.NewMemTableEntry("yyy")
-	entry17 := memTable.NewMemTableEntry("aba")
-
-	tables := memTable.InitMemTablesSkipList(3, 7, 3)
-
-	tables.Add(entry)
-	tables.Add(entry2)
-	tables.Add(entry)
-	tables.Add(entry)
-	tables.Add(entry)
-	tables.Add(entry)
-
-	tables.Add(entry3)
-	tables.Add(entry4)
-	tables.Add(entry5)
-	tables.Add(entry6)
-	tables.Add(entry7)
-	tables.Add(entry8)
-	tables.Add(entry9)
-	tables.Add(entry10)
-	tables.Add(entry11)
-	tables.Add(entry12)
-	tables.Add(entry13)
-	tables.Add(entry14)
-	tables.Add(entry15)
-	tables.Add(entry16)
-	tables.Add(entry17)
-	tables.Print()
-
-	tables.Sort()
-*/

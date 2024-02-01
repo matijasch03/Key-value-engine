@@ -48,7 +48,6 @@ func (table *bTreeMemTable) Find(key string) MemTableEntry {
 }
 
 func (table *bTreeMemTable) Sort() []MemTableEntry {
-
 	return table.data.SortTree()
 }
 

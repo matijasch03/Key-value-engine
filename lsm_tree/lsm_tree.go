@@ -1,11 +1,11 @@
 package lsm_tree
 
 import (
-	"fmt"
-	"sort"
-	"encoding/gob"
 	"bytes"
+	"encoding/gob"
+	"fmt"
 	"os"
+	"sort"
 )
 
 // SSTable predstavlja strukturu za čuvanje podataka u SSTables
@@ -154,6 +154,7 @@ func (lsm *LSMTree) LoadFromFile(filename string) error {
 
 	return nil
 }
+
 // Funkcija za dodavanje podataka u LSMTree
 func (lsm *LSMTree) AddData(level int, key, value string) {
 	// Proverava da li postoji nivo, ako ne, inicijalizuje ga

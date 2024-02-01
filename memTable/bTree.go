@@ -64,13 +64,13 @@ func (tree *bTree) EmptyNode() bTreeNode {
 }
 
 func (tree *bTree) Find(key string) *MemTableEntry {
+	//Searches the tree by going through the tree based on the difference between keys in nodes and the key we are searching
 	current := tree.root
 	for true {
-		if len(current.children) == 0 {
+		if len(current.children) == 0 { // If len(current.children) == 0 then that node is a leaf
 			break
 		}
 		for i := 0; i < len(current.keys); i++ {
-
 			if key == current.keys[i] {
 				return current.values[i]
 			}
@@ -84,7 +84,7 @@ func (tree *bTree) Find(key string) *MemTableEntry {
 			}
 		}
 	}
-	for i := 0; i < len(current.keys); i++ {
+	for i := 0; i < len(current.keys); i++ { // Check if key is in leaf
 		if key == current.keys[i] {
 			return current.values[i]
 		}
@@ -93,6 +93,12 @@ func (tree *bTree) Find(key string) *MemTableEntry {
 }
 
 func (tree *bTree) Insert(value MemTableEntry) bool {
+	/*
+		Insert the entry by doing same algorythm as search
+		Then find the right place for the key-value in the node
+		Then check if node is full, and if so call overflow
+		Returns true if value is added, and false if old value was overwriten
+	*/
 	key := value.key
 	current := tree.root
 
@@ -170,6 +176,11 @@ func (tree *bTree) printNode(node *bTreeNode, level int) {
 }
 
 func (tree *bTree) overflow(current *bTreeNode) {
+	/*
+		Checks if node can do a swap with one of the neighbouring siblings
+		If possible, does the swaps of keys-values and children accordingly
+		If not possible, splits the node
+	*/
 	parent := current.parent
 	if parent == nil {
 		tree.split(current)
@@ -229,6 +240,11 @@ func (tree *bTree) overflow(current *bTreeNode) {
 }
 
 func (tree *bTree) split(current *bTreeNode) {
+	/*
+		Splits the node by sending the middle Value to parent, and creating a new node
+		Splits children and keys-valeus accordingly to maintain the properties of b-tree
+		Checks if parent is full, if is calls the overflow method
+	*/
 	half := len(current.keys) / 2
 	middleKey := current.keys[half]
 	middleValue := current.values[half]
@@ -245,13 +261,10 @@ func (tree *bTree) split(current *bTreeNode) {
 	copy(node.keys, current.keys[half+1:])
 	node.values = make([]*MemTableEntry, int(tree.order)-half-1, tree.order)
 	copy(node.values, current.values[half+1:])
-	//node.keys = current.keys[half+1:]
-	//node.values = current.values[half+1:]
 
 	if len(current.children) >= int(tree.order) {
 		node.children = make([]*bTreeNode, int(tree.order)-half, tree.order+1)
 		copy(node.children, current.children[half+1:])
-		//node.children = current.children[half+1:]
 		for i := 0; i < len(node.children); i++ {
 			child := node.children[i]
 			child.parent = &node
@@ -291,6 +304,7 @@ func (tree *bTree) split(current *bTreeNode) {
 }
 
 func (tree *bTree) SortTree() []MemTableEntry {
+	//Sorts the BTree using recursion, by sorting sub-trees
 	var entries []MemTableEntry
 	node := tree.root
 	for i := 0; i < len(node.keys); i++ {
@@ -318,94 +332,3 @@ func (tree *bTree) Sort(node bTreeNode) []MemTableEntry {
 	}
 	return entries
 }
-
-/*
-	parent := current.parent
-	if parent == nil {
-		tree.split(current)
-		return
-	}
-	for i := 0; i < len(parent.children); i++ {
-		sibling := parent.children[i]
-
-		if len(sibling.keys) < int(tree.order)-1 {
-
-			if len(current.children) != 0 && i == slices.Index(parent.children, current)+1 {
-				child := current.children[len(current.children)-1]
-				child.parent = sibling
-				current.children = slices.Delete(current.children, len(current.children)-1, len(current.children))
-				sibling.children = slices.Insert(sibling.children, 0, child)
-			} else if len(current.children) != 0 && i == slices.Index(parent.children, current)-1 {
-				child := current.children[0]
-				child.parent = sibling
-				current.children = slices.Delete(current.children, 0, 1)
-				sibling.children = append(sibling.children, child)
-			}
-
-			if slices.Index(parent.children, current) == 0 {
-				if i == len(parent.children)-1 {
-					tree.PrintTree()
-					sibling.keys = slices.Insert(sibling.keys, 0, parent.keys[i-1])
-					sibling.values = slices.Insert(sibling.values, 0, parent.values[i-1])
-
-					siblingLast := parent.children[len(parent.children)-2]
-					parent.keys[i-1] = siblingLast.keys[len(siblingLast.keys)-1]
-					parent.values[i-1] = siblingLast.values[len(siblingLast.values)-1]
-					siblingLast.keys = slices.Delete(siblingLast.keys, len(siblingLast.keys)-1, len(siblingLast.keys))
-					siblingLast.values = slices.Delete(siblingLast.values, len(siblingLast.values)-1, len(siblingLast.values))
-					if current != siblingLast {
-						fmt.Println("upsi")
-
-						tree.overflow(current)
-					}
-					break
-				} else {
-					sibling.keys = slices.Insert(sibling.keys, 0, parent.keys[0])
-					sibling.values = slices.Insert(sibling.values, 0, parent.values[0])
-					parent.keys[0] = current.keys[len(current.keys)-1]
-					parent.values[0] = current.values[len(current.values)-1]
-					current.keys = slices.Delete(current.keys, len(current.keys)-1, len(current.keys))
-					current.values = slices.Delete(current.values, len(current.values)-1, len(current.values))
-					break
-				}
-			} else {
-				if i == 0 {
-					sibling.keys = append(sibling.keys, parent.keys[0])
-					sibling.values = append(sibling.values, parent.values[0])
-					parent.keys[0] = current.keys[0]
-					parent.values[0] = current.values[0]
-					current.keys = slices.Delete(current.keys, 0, 1)
-					current.values = slices.Delete(current.values, 0, 1)
-					break
-				} else {
-
-					if i == len(parent.children)-1 {
-						fmt.Println("aa")
-						sibling.keys = slices.Insert(sibling.keys, 0, parent.keys[i-1])
-						sibling.values = slices.Insert(sibling.values, 0, parent.values[i-1])
-						siblingLast := parent.children[len(parent.children)-2]
-						parent.keys[i-1] = siblingLast.keys[len(siblingLast.keys)-1]
-						parent.values[i-1] = siblingLast.values[len(siblingLast.values)-1]
-						siblingLast.keys = slices.Delete(siblingLast.keys, len(siblingLast.keys)-1, len(siblingLast.keys))
-						siblingLast.values = slices.Delete(siblingLast.values, len(siblingLast.values)-1, len(siblingLast.values))
-						if current != siblingLast {
-							tree.overflow(current)
-						}
-						break
-					} else {
-						sibling.keys = slices.Insert(sibling.keys, 0, parent.keys[i-1])
-						sibling.values = slices.Insert(sibling.values, 0, parent.values[i-1])
-						parent.keys[i-1] = parent.keys[i]
-						parent.values[i-1] = parent.values[i]
-						parent.keys[i] = current.keys[0]
-						parent.values[i] = current.values[0]
-						current.keys = slices.Delete(current.keys, 0, 1)
-						current.values = slices.Delete(current.values, 0, 1)
-						break
-					}
-
-				}
-			}
-		}
-	}
-*/
