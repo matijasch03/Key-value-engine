@@ -90,6 +90,17 @@ func (cache *Cache) GetByKey(key string) (bool, interface{}) {
 	return false, nil
 }
 
+// delete object when it's deleted in some other structure (SSTable)
+func (cache *Cache) DeleteByKey(key string) {
+	elem, exist := cache.MapItems[key]
+	if !exist {
+		return
+	}
+
+	delete(cache.MapItems, key)
+	cache.ListLRU.Remove(findByValue(cache.ListLRU, elem))
+}
+
 // print elements from the cache list from the newest to the oldest
 func (cache *Cache) Print() {
 	for elem := cache.ListLRU.Front(); elem != nil; elem = elem.Next() {
@@ -111,6 +122,10 @@ func TestCache() {
 	//fmt.Println(cache.GetByKey("1"))
 	//fmt.Println(cache.GetByKey("3"))
 	//fmt.Println(cache.GetByKey("6"))
+	//cache.Print()
+	//
+	//cache.DeleteByKey("4")
+	//cache.DeleteByKey("4")
 	//cache.Print()
 
 	for i := 0; i < 40; i++ {

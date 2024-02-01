@@ -82,6 +82,7 @@ func main() {
 
 				myWal.Delete(key, 1)
 				memtable.Delete(key)
+				cache.DeleteByKey(key)
 
 			case 4: // EXIT
 				fmt.Print("Enter key: ")
@@ -104,7 +105,7 @@ func main() {
 				os.Exit(0)
 			default:
 				fmt.Println("Invalid choice. Please enter a valid option.")
-				memtable.Print()
+				//memtable.Print()
 			}
 		} else {
 			fmt.Println("You have reached request limit. Please wait a bit.")
