@@ -4,12 +4,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"projekat_nasp/memTable"
+	"projekat_nasp/sstable"
+	"projekat_nasp/config"
 	"sort"
 	"strings"
-
-	"projekat_nasp/config"
-	"projekat_nasp/memtable"
-	"projekat_nasp/sstable"
 )
 
 const (
@@ -108,7 +107,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 
 	for _, record := range allRecords {
 		if current_size > SSTABLE_SIZE {
-			sstable.NewSSTable(helper_list, lvl.Level)
+			sstable.NewSSTable(&helper_list, lvl.Level)
 
 			newTable, _ := sstable.GetTables()
 			newFileName := newTable[0]
@@ -133,7 +132,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 		}
 	}
 	if len(helper_list) != 0 {
-		sstable.NewSSTable(helper_list, lvl.Level)
+		sstable.NewSSTable(&helper_list, lvl.Level)
 
 		newTable, _ := sstable.GetTables()
 		newFileName := newTable[0]
@@ -206,7 +205,7 @@ func LeveledCompaction() {
 	maxLevels := config.GlobalConfig.MaxLevels
 	var lev []*Level
 	levels := Levels{lev, maxLevels}
-	tables, _ := sstable_all_in_one.GetTables()
+	tables, _ := sstable.GetTables()
 	//reverse the order from oldest to youngest
 	for i, j := 0, len(tables)-1; i < j; i, j = i+1, j-1 {
 		tables[i], tables[j] = tables[j], tables[i]
@@ -214,7 +213,7 @@ func LeveledCompaction() {
 	level1 := NewLevel(0, SSTABLE_SIZE)
 	levels.Levels = append(levels.Levels, level1)
 	for _, table := range tables {
-		level1.AddToLevel("data\\"+table, &levels)
+		level1.AddToLevel("resources\\"+table, &levels)
 	}
 }
 
