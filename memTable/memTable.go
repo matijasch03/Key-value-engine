@@ -54,7 +54,15 @@ func NewMemTableEntry(key string, value []byte, tombstone byte, timestamp uint64
 	}
 	return entry
 }
-
+func FillWithParametersEntry(key string,value []byte,timestamp uint64,tombstone byte)MemTableEntry{
+	entry := MemTableEntry{
+		key,
+		value,
+		tombstone,
+		timestamp,
+	}
+	return entry
+}
 // Manages instances of mem tables
 type MemTablesManager struct {
 	tables       []MemTable
