@@ -111,7 +111,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 
 			newTable, _ := sstable.GetTables()
 			newFileName := newTable[0]
-			newFileName = "../data/sstable" + newFileName
+			newFileName = "data/sstable" + newFileName
 
 			newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
 			if err != nil {
@@ -136,7 +136,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 
 		newTable, _ := sstable.GetTables()
 		newFileName := newTable[0]
-		newFileName = "../data/sstable" + newFileName
+		newFileName = "data/sstable" + newFileName
 
 		newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
 		if err != nil {
