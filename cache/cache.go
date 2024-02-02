@@ -125,10 +125,6 @@ func TestCache() {
 	//cache.Print()
 	//
 	//cache.DeleteByKey("4")
-<<<<<<< HEAD
-	//cache.DeleteByKey("4")
-=======
->>>>>>> cache
 	//cache.Print()
 
 	for i := 0; i < 40; i++ {
@@ -145,6 +141,6 @@ func TestCache() {
 
 		fmt.Print("Cache: ")
 		cache.Print()
-		fmt.Println("Length:", cache.Length, "\n")
+		fmt.Println("Length:", cache.Length)
 	}
 }
