@@ -111,7 +111,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 
 			newTable, _ := sstable.GetTables()
 			newFileName := newTable[0]
-			newFileName = "resources\\" + newFileName
+			newFileName = "../data/sstable" + newFileName
 
 			newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
 			if err != nil {
@@ -136,7 +136,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 
 		newTable, _ := sstable.GetTables()
 		newFileName := newTable[0]
-		newFileName = "resources\\" + newFileName
+		newFileName = "../data/sstable" + newFileName
 
 		newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
 		if err != nil {
@@ -213,7 +213,7 @@ func LeveledCompaction() {
 	level1 := NewLevel(0, SSTABLE_SIZE)
 	levels.Levels = append(levels.Levels, level1)
 	for _, table := range tables {
-		level1.AddToLevel("resources\\"+table, &levels)
+		level1.AddToLevel("../data/sstable"+table, &levels)
 	}
 }
 

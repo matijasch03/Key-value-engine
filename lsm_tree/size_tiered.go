@@ -61,7 +61,7 @@ func SizeTiered() error {
 func getLevelFiles(level int) ([]string, error) {
 	var files []string
 
-	dir, err := os.Open("data/sstable")
+	dir, err := os.Open("resources")
 	defer dir.Close()
 	if err != nil {
 		return nil, err
@@ -73,8 +73,8 @@ func getLevelFiles(level int) ([]string, error) {
 	}
 
 	for _, file := range fileInfo {
-		if strings.Contains(file.Name(), "usertable") {
-			fileLevel := strings.Split(strings.TrimSuffix(file.Name(), ".db"), "-")[1][3:]
+		if strings.Contains(file.Name(), "file") {
+			fileLevel := strings.Split(strings.TrimSuffix(file.Name(), ".db"), "_")[2]
 			if lvl, _ := strconv.Atoi(fileLevel); lvl == level {
 				files = append(files, file.Name())
 			}
@@ -86,8 +86,8 @@ func getLevelFiles(level int) ([]string, error) {
 
 func compact(files []string, level int) error {
 	for i := 1; i < len(files); i += 2 {
-		first := "data\\sstable" + files[i-1]
-		second := "data\\sstable" + files[i]
+		first := "../data/sstable" + files[i-1]
+		second := "../data/sstable" + files[i]
 		err := MergeTables(first, second, level)
 		if err != nil {
 			return err
@@ -110,7 +110,7 @@ func compact(files []string, level int) error {
 func deleteMerkleTree(tableFileName string) error {
 	timestamp := strings.Split(tableFileName, "_")[1]
 
-	err := os.Remove("data\\sstable\\MetaData-" + timestamp + ".txt")
+	err := os.Remove("..data/sstable/MetaData_" + timestamp + ".txt")
 
 	return err
 }
@@ -119,7 +119,7 @@ func getLevelBytes(files []string) (int, error) {
 	total := 0
 
 	for _, file := range files {
-		fi, err := os.Stat("data\\sstable" + file)
+		fi, err := os.Stat("../data/sstable" + file)
 		if err != nil {
 			return 0, err
 		}
