@@ -204,7 +204,7 @@ func LeveledCompaction() {
 	level1 := NewLevel(0, SSTABLE_SIZE)
 	levels.Levels = append(levels.Levels, level1)
 	for _, table := range tables {
-		level1.AddToLevel("../data/sstable"+table, &levels)
+		level1.AddToLevel("data/sstable"+table, &levels)
 	}
 }
 
