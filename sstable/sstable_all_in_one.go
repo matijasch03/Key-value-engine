@@ -7,6 +7,7 @@ import (
 	"os"
 	"projekat_nasp/bloom_filter"
 	"projekat_nasp/memTable"
+	merkletree "projekat_nasp/merkle_tree"
 	"time"
 )
 
@@ -31,7 +32,7 @@ type SSTable_Unique struct {
 	blockIndexes []uint64
 	indexLeaders []string
 	IndexIndexes []uint64
-	bF           bloom_filter.BloomFilter
+	bF           bloom_filter.BloomFilterUnique
 	bFPosition   uint64
 	bFDataSize   uint64
 	merkleData   [][]byte
@@ -39,9 +40,8 @@ type SSTable_Unique struct {
 	unixTime     int64
 }
 
-// upis odredjene kolicine podataka u fajl
 func writeBlock(recordByte *[]byte, path string) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600) // unece se jos jedan parametar strukture SSTable za ime fajla
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -52,21 +52,16 @@ func writeBlock(recordByte *[]byte, path string) {
 	w.Flush()
 }
 
-// pocetak upisa, prima sve "slogove" za upis
 func writeSSTable(data []memTable.MemTableEntry, sstable *SSTable_Unique) {
-	// var block_size uint
-	// fmt.Print("Unesite velicinu data bloka: ") // bira se velicina bloka kojim ce biti odvojene sektori za pretragu
-	// fmt.Scan(&block_size)
 	block_size := 2
 	for i := 0; i < len(data); i++ {
 		node := data[i]
 
-		// upis u merkle
 		in := append([]byte(node.GetKey()), node.GetValue()...)
 		sstable.merkleData = append(sstable.merkleData, in)
 		in = nil
 
-		sstable.bF.Add((node.GetKey()))
+		sstable.bF.Add(([]byte(node.GetKey())))
 		if i%int(block_size) == 0 {
 			sstable.blockLeaders = append(sstable.blockLeaders, node.GetKey())
 			sstable.blockIndexes = append(sstable.blockIndexes, sstable.dataSize+HEADER_SIZE)
@@ -77,7 +72,7 @@ func writeSSTable(data []memTable.MemTableEntry, sstable *SSTable_Unique) {
 		} else {
 			thumbstoneByte = 0
 		}
-		// kreiranje velicine niza bajtova koji ce se upisati
+
 		recordByte := make([]byte, len([]byte(node.GetKey()))+len(node.GetValue())+KEY_SIZE_LEN+VALUE_SIZE_LEN+TIMESTAMP_LEN+TOMBSTONE_LEN)
 		sstable.dataSize += uint64(len(recordByte))
 
@@ -90,14 +85,13 @@ func writeSSTable(data []memTable.MemTableEntry, sstable *SSTable_Unique) {
 
 		writeBlock(&recordByte, sstable.path)
 	}
-	writeIndex(sstable)       // upisi index zonu
-	writeHeader(sstable)      // upisi header
-	writeSummary(sstable)     // upis summary-a
-	writeBloomFilter(sstable) // kreiranje BF za potrebe memorisanja a zarad kasnijeg pretrazivanja
-	merkle.BuildMerkleTree(sstable.merkleData, sstable.unixTime)
+	writeIndex(sstable)
+	writeHeader(sstable)
+	writeSummary(sstable)
+	writeBloomFilter(sstable)
+	merkletree.BuildMerkleTree(sstable.merkleData, sstable.unixTime)
 }
 
-// upisuje zaglavlje fajla sa neophodnim podacima
 func writeHeader(sstable *SSTable_Unique) {
 	f, err := os.OpenFile(sstable.path, os.O_WRONLY, 0666)
 	if err != nil {
@@ -106,25 +100,25 @@ func writeHeader(sstable *SSTable_Unique) {
 	defer f.Close()
 
 	f.Seek(0, 0)
-	// upis velicine data segmenta da bi se mogli pozicionirati u index zonu
+
 	err = binary.Write(f, binary.LittleEndian, sstable.dataSize+HEADER_SIZE)
 	if err != nil {
 		println(err)
 		return
 	}
-	// upis velicine index zone da bi se mogli pozicionirati u summary zonu
+
 	err = binary.Write(f, binary.LittleEndian, sstable.indexSize+HEADER_SIZE)
 	if err != nil {
 		println(err)
 		return
 	}
-	// upis tacne pozicije BF
+
 	err = binary.Write(f, binary.LittleEndian, sstable.bFPosition)
 	if err != nil {
 		println(err)
 		return
 	}
-	// upis velicine data zone bloom filtera
+
 	err = binary.Write(f, binary.LittleEndian, sstable.bFDataSize)
 	if err != nil {
 		println(err)
@@ -133,11 +127,8 @@ func writeHeader(sstable *SSTable_Unique) {
 
 }
 
-// upis zone indeksa
 func writeIndex(sstable *SSTable_Unique) {
-	// var block_size uint
-	// fmt.Print("Unesite velicinu index bloka: ")
-	// fmt.Scan(&block_size)
+
 	block_size := 2
 	for i, key := range sstable.blockLeaders {
 		if i%int(block_size) == 0 {
@@ -156,7 +147,6 @@ func writeIndex(sstable *SSTable_Unique) {
 	sstable.summary = sstable.dataSize + sstable.indexSize + HEADER_SIZE
 }
 
-// upis summary zone
 func writeSummary(sstable *SSTable_Unique) {
 	for i, key := range sstable.indexLeaders {
 		recordByte := make([]byte, K_SIZE+len([]byte(key))+VALUE_SIZE_LEN)
@@ -170,7 +160,6 @@ func writeSummary(sstable *SSTable_Unique) {
 	sstable.bFPosition = sstable.summary + sstable.summarySize
 }
 
-// upis BF
 func writeBloomFilter(sstable *SSTable_Unique) {
 	recordByte := make([]byte, M_SIZE+len(sstable.bF.Data))
 	binary.LittleEndian.PutUint64(recordByte[0:M_SIZE], uint64(sstable.bF.M))
@@ -186,12 +175,11 @@ func writeBloomFilter(sstable *SSTable_Unique) {
 	}
 }
 
-// poziv za kreiranje SSTable-a
 func NewSSTable(data []memTable.MemTableEntry, level int) {
 	var sstable SSTable_Unique
 	sstable.unixTime = time.Now().UnixNano()
-	sstable.path = "data\\file_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db" // dodati random naziva na ime
-	file, err := os.Create(sstable.path)                                                          // nekom metodom davati imena, npr u ms vreme ili tako nes
+	sstable.path = "data\\file_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
+	file, err := os.Create(sstable.path)
 	if err != nil {
 		panic(err)
 	}
@@ -202,6 +190,6 @@ func NewSSTable(data []memTable.MemTableEntry, level int) {
 	sstable.bFDataSize = 0
 	writeHeader(&sstable)
 
-	sstable.bF = *bloomfilter.NewBloomFilter(len(*data), FALSE_POSITIVE_RATE)
+	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(*data), FALSE_POSITIVE_RATE)
 	writeSSTable(data, &sstable)
 }
