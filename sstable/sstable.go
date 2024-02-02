@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"sort"
+	"time"
+	"projekat_nasp/config"
 )
 
 type SSTable struct {
@@ -84,8 +86,9 @@ func readSSTable(filename, level string) (table *SSTable) {
 func CRC32(data []byte) uint32 {
 	return crc32.ChecksumIEEE(data)
 }
-func CreateSStable(data []memTable.MemTableEntry, filename string) (table *SSTable) {
-	generalFilename := "data/sstable/usertable" + filename + "-lev1-" //
+func CreateSStable(data []memTable.MemTableEntry,level int) (table *SSTable) {
+	unixTime := time.Now().UnixNano()
+	generalFilename := "data/sstable/usertable" + fmt.Sprint(unixTime)+"-lev"+strconv.Itoa(level)+"-"//
 	table = &SSTable{generalFilename, generalFilename + "Data.db", generalFilename + "Index.db",
 		generalFilename + "Summary.db", generalFilename + "Filter.gob"}
 
@@ -394,4 +397,46 @@ func GetTables() ([]string, error) {
 	})
 
 	return files, nil
+}
+func CountRecords(path string) int {
+	f, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	buffer := make([]byte, 8)
+	_, err = f.Read(buffer)
+
+	dataSegmentLength := int(binary.LittleEndian.Uint64(buffer)) - 32 // Duzina data segmenta u bajtovima
+	byteCounter := 0
+	counter := 0
+	recordSize := config.GlobalConfig.KeySizeSize + config.GlobalConfig.ValueSizeSize + config.GlobalConfig.TimestampSize + config.GlobalConfig.TombstoneSize
+
+	_, err = f.Seek(32, 0)
+
+	for byteCounter < dataSegmentLength {
+		keySizeBuff := make([]byte, config.GlobalConfig.KeySizeSize)
+		_, err = f.Read(keySizeBuff)
+		if err != nil {
+			panic(err)
+		}
+		keySize := binary.LittleEndian.Uint64(keySizeBuff)
+
+		valueSizeBuff := make([]byte, config.GlobalConfig.ValueSizeSize)
+		_, err = f.Read(valueSizeBuff)
+		if err != nil {
+			panic(err)
+		}
+		valueSize := binary.LittleEndian.Uint64(valueSizeBuff)
+
+		totalSize := recordSize + int(keySize) + int(valueSize)
+		byteCounter += totalSize
+
+		offset := totalSize - config.GlobalConfig.KeySizeSize - config.GlobalConfig.ValueSizeSize
+		_, err = f.Seek(int64(offset), 1)
+		counter++
+	}
+
+	return counter
 }
