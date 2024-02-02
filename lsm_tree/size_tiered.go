@@ -61,7 +61,7 @@ func SizeTiered() error {
 func getLevelFiles(level int) ([]string, error) {
 	var files []string
 
-	dir, err := os.Open("data/sstable")
+	dir, err := os.Open("data/sstable/")
 	defer dir.Close()
 	if err != nil {
 		return nil, err
@@ -86,8 +86,8 @@ func getLevelFiles(level int) ([]string, error) {
 
 func compact(files []string, level int) error {
 	for i := 1; i < len(files); i += 2 {
-		first := "data/sstable" + files[i-1]
-		second := "data/sstable" + files[i]
+		first := "data/sstable/" + files[i-1]
+		second := "data/sstable/" + files[i]
 		err := MergeTables(first, second, level)
 		if err != nil {
 			return err
@@ -119,7 +119,7 @@ func getLevelBytes(files []string) (int, error) {
 	total := 0
 
 	for _, file := range files {
-		fi, err := os.Stat("data/sstable" + file)
+		fi, err := os.Stat("data/sstable/" + file)
 		if err != nil {
 			return 0, err
 		}

@@ -48,7 +48,7 @@ func MergeTables(first, second string, level int) error {
 	// Redosledna obrada
 	records := sequentialUpdate(firstFile, secondFile, firstLength, secondLength)
 
-	sstable.CreateSStable(records, level)
+	sstable.NewSSTable(&records, level)
 
 	err = firstFile.Close()
 	if err != nil {
