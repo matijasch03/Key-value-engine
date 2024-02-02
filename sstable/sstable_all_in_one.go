@@ -11,32 +11,32 @@ import (
 )
 
 const (
-	KEY_SIZE_LEN        = 8 // duzina polja za duzinu kljuca u bajtovima
-	VALUE_SIZE_LEN      = 8 // duzina polja za duzinu value u bajtovima
+	KEY_SIZE_LEN        = 8
+	VALUE_SIZE_LEN      = 8
 	TOMBSTONE_LEN       = 1
 	TIMESTAMP_LEN       = 8
-	KEY_VALUE_START     = KEY_SIZE_LEN + VALUE_SIZE_LEN + TOMBSTONE_LEN + TIMESTAMP_LEN // mesto odakle pocinje vrendost kljuca
-	HEADER_SIZE         = 32                                                            // u prva 32 bajta cuvam velicinu data segmenta, index segmenta, pocetak BloomFiltera i velicinu data zone u bloomfilteru
-	M_SIZE              = 8                                                             // prvih 8 bajtova bloomfilter segmenta sadrze podatke o M
+	KEY_VALUE_START     = KEY_SIZE_LEN + VALUE_SIZE_LEN + TOMBSTONE_LEN + TIMESTAMP_LEN
+	HEADER_SIZE         = 32
+	M_SIZE              = 8
 	K_SIZE              = 8
-	FALSE_POSITIVE_RATE = 0.001 // velicina svakog polja u kome ce se cuvati velicinu Seed-a da bi pomocu nje ucitali tacno odredjen broj bajtova
+	FALSE_POSITIVE_RATE = 0.001
 )
 
 type SSTable_Unique struct {
-	dataSize     uint64                   // velicina data segmenta
-	indexSize    uint64                   // velicina index segmenta
-	summarySize  uint64                   // velicina summary segmenta
-	summary      uint64                   // tacna pozicija summary segmenta za slucaj pretrage u njemu
-	blockLeaders []string                 // pomocna lista kljuceva
-	blockIndexes []uint64                 // pomocna lista indeksa
-	indexLeaders []string                 // pomocna litsa kljuceva
-	IndexIndexes []uint64                 // pomocna lista indeksa
-	bF           bloom_filter.BloomFilter // Bloom Filter SSTable
-	bFPosition   uint64                   // tacna pozicija BF, sluzi za zapis u header
-	bFDataSize   uint64                   // velicina data zone u BF, isto zarad header-a
+	dataSize     uint64
+	indexSize    uint64
+	summarySize  uint64
+	summary      uint64
+	blockLeaders []string
+	blockIndexes []uint64
+	indexLeaders []string
+	IndexIndexes []uint64
+	bF           bloom_filter.BloomFilter
+	bFPosition   uint64
+	bFDataSize   uint64
 	merkleData   [][]byte
 	path         string
-	unixTime     int64 // Vreme kad je formirana ss tabela u nanosekundama od 1970. godine
+	unixTime     int64
 }
 
 // upis odredjene kolicine podataka u fajl
