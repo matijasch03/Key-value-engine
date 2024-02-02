@@ -2,6 +2,7 @@ package memTable
 
 import (
 	"fmt"
+	"projekat_nasp/config"
 )
 
 /*
@@ -54,7 +55,7 @@ func NewMemTableEntry(key string, value []byte, tombstone byte, timestamp uint64
 	}
 	return entry
 }
-func FillWithParametersEntry(key string,value []byte,timestamp uint64,tombstone byte)MemTableEntry{
+func FillWithParametersEntry(key string, value []byte, timestamp uint64, tombstone byte) MemTableEntry {
 	entry := MemTableEntry{
 		key,
 		value,
@@ -63,6 +64,7 @@ func FillWithParametersEntry(key string,value []byte,timestamp uint64,tombstone 
 	}
 	return entry
 }
+
 // Manages instances of mem tables
 type MemTablesManager struct {
 	tables       []MemTable
@@ -71,6 +73,12 @@ type MemTablesManager struct {
 }
 
 func InitMemTablesHash(maxInstances int, maxSize uint64) MemTablesManager {
+	if maxInstances <= 0 {
+		maxInstances = config.MAX_TABLES
+	}
+	if maxSize <= 0 {
+		maxSize = config.MEMTABLE_SIZE
+	}
 	tables := make([]MemTable, maxInstances)
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitHashMemTable(maxSize)
@@ -84,6 +92,15 @@ func InitMemTablesHash(maxInstances int, maxSize uint64) MemTablesManager {
 }
 
 func InitMemTablesBTree(maxInstances int, maxSize uint64, order uint8) MemTablesManager {
+	if maxInstances <= 0 {
+		maxInstances = config.MAX_TABLES
+	}
+	if maxSize <= 0 {
+		maxSize = config.MEMTABLE_SIZE
+	}
+	if order <= 1 {
+		order = config.B_TREE_ORDER
+	}
 	tables := make([]MemTable, maxInstances)
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitBTreeMemTable(maxSize, order)
@@ -97,6 +114,15 @@ func InitMemTablesBTree(maxInstances int, maxSize uint64, order uint8) MemTables
 }
 
 func InitMemTablesSkipList(maxInstances int, maxSize uint64, maxHeight int) MemTablesManager {
+	if maxInstances <= 0 {
+		maxInstances = config.MAX_TABLES
+	}
+	if maxSize <= 0 {
+		maxSize = config.MEMTABLE_SIZE
+	}
+	if maxHeight <= 1 {
+		maxHeight = config.SKIP_LIST_HEIGHT
+	}
 	tables := make([]MemTable, maxInstances)
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitsSkipListMemTable(maxSize, maxHeight)
@@ -186,4 +212,3 @@ func (memTables *MemTablesManager) Print() {
 		memTables.tables[i].Print()
 	}
 }
-

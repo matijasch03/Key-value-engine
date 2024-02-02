@@ -1,46 +1,48 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"encoding/json"
 )
 
 var GlobalConfig Config
 
 const (
-	EXPECTED_EL          = 1000
-	FALSE_POSITIVE_RATE  = 0.001
-	CMS_EPSILON          = 0.001
-	CMS_DELTA            = 0.001
-	CACHE_CAP            = 100
-	MEMTABLE_SIZE        = 10
-	STRUCTURE_TYPE       = "skiplist"
-	SKIP_LIST_HEIGHT     = 10
-	B_TREE_ORDER         = 3
-	TOKEN_NUMBER         = 20
-	TOKEN_REFRESH_TIME   = 2
-	WAL_PATH             = "logs"
-	MAX_ENTRY_SIZE       = 1024
-	CRC_SIZE             = 4
-	TIMESTAMP_SIZE       = 8
-	TOMBSTONE_SIZE       = 1
-	KEY_SIZE_SIZE        = 8
-	VALUE_SIZE_SIZE      = 8
-	CRC_START            = 0
-	MAX_LEVELS           = 4
-	MAX_BYTES            = 5000
-	MAX_TABLES           = 2
-	SCALING_FACTOR       = 2
-	COMPACTION_ALGORITHM = "sizeTiered"
-	CONDITION            = "tables"
-	TIMESTAMP_START      = CRC_START + CRC_SIZE
-	TOMBSTONE_START      = TIMESTAMP_START + TIMESTAMP_SIZE
-	KEY_SIZE_START       = TOMBSTONE_START + TOMBSTONE_SIZE
-	VALUE_SIZE_START     = KEY_SIZE_START + KEY_SIZE_SIZE
-	KEY_START            = VALUE_SIZE_START + VALUE_SIZE_SIZE
+	EXPECTED_EL           = 1000
+	FALSE_POSITIVE_RATE   = 0.001
+	CMS_EPSILON           = 0.001
+	CMS_DELTA             = 0.001
+	CACHE_CAP             = 100
+	MEMTABLE_SIZE         = 10
+	STRUCTURE_TYPE        = "skiplist"
+	SKIP_LIST_HEIGHT      = 10
+	B_TREE_ORDER          = 3
+	TOKEN_NUMBER          = 20
+	TOKEN_REFRESH_TIME    = 2
+	WAL_PATH              = "logs"
+	MAX_ENTRY_SIZE        = 1024
+	CRC_SIZE              = 4
+	TIMESTAMP_SIZE        = 8
+	TOMBSTONE_SIZE        = 1
+	KEY_SIZE_SIZE         = 8
+	VALUE_SIZE_SIZE       = 8
+	CRC_START             = 0
+	MAX_LEVELS            = 4
+	MAX_BYTES             = 5000
+	MAX_TABLES            = 2
+	SCALING_FACTOR        = 2
+	COMPACTION_ALGORITHM  = "sizeTiered"
+	CONDITION             = "tables"
+	TIMESTAMP_START       = CRC_START + CRC_SIZE
+	TOMBSTONE_START       = TIMESTAMP_START + TIMESTAMP_SIZE
+	KEY_SIZE_START        = TOMBSTONE_START + TOMBSTONE_SIZE
+	VALUE_SIZE_START      = KEY_SIZE_START + KEY_SIZE_SIZE
+	KEY_START             = VALUE_SIZE_START + VALUE_SIZE_SIZE
+	HYPERLOGLOG_PRECISION = 8
+	HYPERLOGLOG64BITHASH  = false
 )
 
 type Config struct {
@@ -74,8 +76,9 @@ type Config struct {
 	ValueSizeStart         int     `json:"valueSizeStart"`
 	KeyStart               int     `json:"keyStart"`
 	BTreeOrder             int     `json:"bTreeOrder"`
+	HyperloglogPrecision   int     `json:"HyperloglogPrecision"`
+	Hyperloglog64bitHash   bool    `json:"Hyperloglog64bitHash"`
 }
-
 
 func NewConfig(filename string) *Config {
 	var config Config
@@ -111,6 +114,8 @@ func NewConfig(filename string) *Config {
 		config.KeySizeStart = KEY_SIZE_START
 		config.ValueSizeStart = VALUE_SIZE_START
 		config.KeyStart = KEY_START
+		config.HyperloglogPrecision = HYPERLOGLOG_PRECISION
+		config.Hyperloglog64bitHash = HYPERLOGLOG64BITHASH
 	} else {
 		err = json.Unmarshal(yamlFile, &config)
 		if err != nil {

@@ -130,7 +130,7 @@ func (tree *bTree) Insert(value MemTableEntry) bool {
 	for i := 0; i < len(current.keys); i++ {
 		if key == current.keys[i] {
 			current.values[i] = &value
-			break
+			return false
 		}
 		if key < current.keys[i] {
 			current.keys = slices.Insert(current.keys, i, key)

@@ -156,13 +156,15 @@ func (wal *Wal) Recovery(table memTable.MemTablesManager) {
 				break
 			}
 			fmt.Println(walEntry.Validate())
-			wal.Write(string(walEntry.Key), walEntry.Value, walEntry.Tombstone)
-			full := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
-			if full != nil {
-				sstable.CreateSStable(full, 1) // treba ustanoviti kako se TACNO nazivaju sstable fajlovi
+
+			if walEntry.Tombstone == 0 {
+				full := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
+				if full != nil {
+					sstable.CreateSStable(full, 1) // treba ustanoviti kako se TACNO nazivaju sstable fajlovi
+				}
+			} else {
+				table.Delete(string(walEntry.Key))
 			}
 		}
-
 	}
-
 }

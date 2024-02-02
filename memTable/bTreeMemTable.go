@@ -1,5 +1,7 @@
 package memTable
 
+import "fmt"
+
 type bTreeMemTable struct {
 	maxSize     uint64
 	currentSize uint64
@@ -52,5 +54,6 @@ func (table *bTreeMemTable) Sort() []MemTableEntry {
 }
 
 func (table *bTreeMemTable) Print() {
+	fmt.Println(table.currentSize, table.maxSize)
 	table.data.PrintTree()
 }

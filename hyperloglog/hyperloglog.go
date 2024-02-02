@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/bits"
 	"os"
+	"projekat_nasp/config"
 )
 
 type HLL struct {
@@ -20,6 +21,9 @@ type HLL struct {
 }
 
 func InitHLL(p uint8, b64 bool) HLL { // "konstruktor" za HLL, b64 je da li zelimo da koristimo 64-obitno hesiranje ili ne (32 ako ne)
+	if p < 4 || p > 16 {
+		p = config.HYPERLOGLOG_PRECISION
+	}
 	m := uint64(math.Pow(2, float64(p))) // m = 2^p
 	set := make([]uint8, m, m)
 	hll := HLL{
@@ -97,7 +101,7 @@ func (hll *HLL) SacuvajHLL(putanja string) {
 func UcitajHLL(putanja string) HLL {
 	file, err := os.OpenFile(putanja, os.O_RDONLY, 0666)
 	if err != nil {
-		panic(err.Error())
+		return InitHLL(uint8(config.GlobalConfig.HyperloglogPrecision), config.GlobalConfig.Hyperloglog64bitHash)
 	}
 	decoder := gob.NewDecoder(file)
 	var hll = new(HLL)
