@@ -154,7 +154,7 @@ func WriteSummary(keys []string, offsets []uint, filename string) {
 	}
 }
 
-/*func WriteSummary_13(keys []string, offsets []uint, filename string, step int) { //sa stepenom prorjeđenosti
+func WriteSummary_13(keys []string, offsets []uint, filename string, step int) { //sa stepenom prorjeđenosti
 	file, err := os.Create(filename)
 	if err != nil {
 		log.Fatal(err)
@@ -202,7 +202,7 @@ func WriteSummary(keys []string, offsets []uint, filename string) {
 			log.Fatal(err)
 		}
 	}
-}*/
+}
 
 func FindSummary(key, filename string) (ok bool, offset int64) {
 	ok = false

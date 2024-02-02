@@ -10,12 +10,12 @@ import (
 	"log"
 	"os"
 	"projekat_nasp/bloom_filter"
+	"projekat_nasp/config"
 	"projekat_nasp/memTable"
+	"sort"
 	"strconv"
 	"strings"
-	"sort"
 	"time"
-	"projekat_nasp/config"
 )
 
 type SSTable struct {
@@ -86,9 +86,9 @@ func readSSTable(filename, level string) (table *SSTable) {
 func CRC32(data []byte) uint32 {
 	return crc32.ChecksumIEEE(data)
 }
-func CreateSStable(data []memTable.MemTableEntry,level int) (table *SSTable) {
+func CreateSStable(data []memTable.MemTableEntry, level int) (table *SSTable) {
 	unixTime := time.Now().UnixNano()
-	generalFilename := "data/sstable/usertable" + fmt.Sprint(unixTime)+"-lev"+strconv.Itoa(level)+"-"//
+	generalFilename := "data/sstable/usertable" + fmt.Sprint(unixTime) + "-lev" + strconv.Itoa(level) + "-" //
 	table = &SSTable{generalFilename, generalFilename + "Data.db", generalFilename + "Index.db",
 		generalFilename + "Summary.db", generalFilename + "Filter.gob"}
 
@@ -203,7 +203,131 @@ func CreateSStable(data []memTable.MemTableEntry,level int) (table *SSTable) {
 
 	index := CreateIndex(keys, offset, table.indexFilename)
 	keys, offsets := index.Write()
-	WriteSummary(keys, offsets, table.summaryFilename,5)
+	WriteSummary(keys, offsets, table.summaryFilename)
+	filter.SaveToFile(table.filterFilename)
+	table.WriteTOC()
+
+	return
+}
+
+func CreateSStable_13(data []memTable.MemTableEntry, level int, st_pr int) (table *SSTable) { //st_pr
+	unixTime := time.Now().UnixNano()
+	generalFilename := "data/sstable/usertable" + fmt.Sprint(unixTime) + "-lev" + strconv.Itoa(level) + "-" //
+	table = &SSTable{generalFilename, generalFilename + "Data.db", generalFilename + "Index.db",
+		generalFilename + "Summary.db", generalFilename + "Filter.gob"}
+
+	filter := bloom_filter.NewBloomFilter(len(data), 2)
+	keys := make([]string, 0)
+	offset := make([]uint, 0) //position in the data
+	values := make([][]byte, 0)
+	currentOffset := uint(0)
+	file, err := os.Create(table.SSTableFilename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+
+	bytesLen := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytesLen, uint64(len(data)))
+	bytesWritten, err := writer.Write(bytesLen)
+	currentOffset += uint(bytesWritten)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = writer.Flush()
+	if err != nil {
+		return
+	}
+	//node := data.data.head.Next[0]; node != nil; node = node.Next[0]
+	for i := 0; i < len(data); i++ {
+		node := data[i]
+		key := node.GetKey()
+		value := node.GetValue()
+		keys = append(keys, key)
+		offset = append(offset, currentOffset)
+		values = append(values, value)
+
+		filter.Add(key)
+		crc := CRC32(value)
+		crcBytes := make([]byte, 4)
+		binary.LittleEndian.PutUint32(crcBytes, crc)
+		bytesWritten, err := writer.Write(crcBytes)
+		currentOffset += uint(bytesWritten)
+		if err != nil {
+			return
+		}
+
+		//Timestamp
+		timestamp := node.GetTimeStamp()
+		timestampBytes := make([]byte, 64)
+		binary.LittleEndian.PutUint64(timestampBytes, timestamp)
+
+		//copy(timestampBytes, timestamp)
+
+		bytesWritten, err = writer.Write(timestampBytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+		currentOffset += uint(bytesWritten)
+
+		//Tombstone
+		tombstone := node.GetTombstone()
+		/*
+			tombstoneInt := uint8(0)
+			if tombstone {
+				tombstoneInt = 1
+			}
+		*/
+		err = writer.WriteByte(tombstone)
+		currentOffset += 1
+		if err != nil {
+			return
+		}
+
+		keyBytes := []byte(key)
+
+		keyLen := uint64(len(keyBytes))
+		keyLenBytes := make([]byte, 8)
+		binary.LittleEndian.PutUint64(keyLenBytes, keyLen)
+		bytesWritten, err = writer.Write(keyLenBytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+		currentOffset += uint(bytesWritten)
+
+		valueLen := uint64(len(value))
+		valueLenBytes := make([]byte, 8)
+		binary.LittleEndian.PutUint64(valueLenBytes, valueLen)
+		bytesWritten, err = writer.Write(valueLenBytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+		currentOffset += uint(bytesWritten)
+
+		bytesWritten, err = writer.Write(keyBytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+		currentOffset += uint(bytesWritten)
+
+		bytesWritten, err = writer.Write(value)
+		if err != nil {
+			return
+		}
+		currentOffset += uint(bytesWritten)
+
+		err = writer.Flush()
+		if err != nil {
+			return
+		}
+	}
+
+	index := CreateIndex(keys, offset, table.indexFilename)
+	keys, offsets := index.Write()
+	WriteSummary_13(keys, offsets, table.summaryFilename, st_pr)
 	filter.SaveToFile(table.filterFilename)
 	table.WriteTOC()
 
@@ -346,7 +470,7 @@ func findSSTableFilename(level string) (filename string) {
 
 }
 
-func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []byte,table *SSTable) {
+func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []byte, table *SSTable) {
 	oldTimestamp := ""
 	found = false
 	levelNum := maxLevels
@@ -373,6 +497,7 @@ func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []by
 	}
 	return
 }
+
 // Pronalazenje putanja do tabela
 func GetTables() ([]string, error) {
 	var files []string
