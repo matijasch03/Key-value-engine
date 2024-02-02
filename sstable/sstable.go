@@ -212,6 +212,7 @@ func CreateSStable(data []memTable.MemTableEntry, level int) (table *SSTable) {
 }
 
 func CreateSStable_13(data []memTable.MemTableEntry, level int, st_pr int) (table *SSTable) { //st_pr
+	NewSSTable(&data,level)
 	unixTime := time.Now().UnixNano()
 	generalFilename := "data/sstable/usertable" + fmt.Sprint(unixTime) + "-lev" + strconv.Itoa(level) + "-" //
 	table = &SSTable{generalFilename, generalFilename + "Data.db", generalFilename + "Index.db",
