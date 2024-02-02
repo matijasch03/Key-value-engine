@@ -12,7 +12,6 @@ import (
 	"projekat_nasp/sstable"
 	"projekat_nasp/token_bucket"
 	"projekat_nasp/wal"
-	"strconv"
 	"strings"
 )
 
@@ -69,7 +68,7 @@ func main() {
 				entry := memTable.NewMemTableEntry(key, []byte(value), 0, walEntry.Timestamp)
 				full := memtable.Add(entry)
 				if full != nil {
-					sstable.CreateSStable(full, strconv.Itoa(broj))
+					sstable.CreateSStable(full,1)
 					broj = broj + 1
 				}
 				cache.AddItem(key, value)
@@ -97,7 +96,7 @@ func main() {
 				fmt.Println("Exiting...")
 				myWal.Dump()
 				data := memtable.Sort()
-				sstable.CreateSStable(data, "file")
+				sstable.CreateSStable(data, 1)
 				//bloom_filter.SaveToFile("data/bloom_filter/bf.gob")
 				hll.SacuvajHLL("./data/hyperloglog/hll.gob")
 				countMinSketch.WriteGob("./data/count_min_sketch/cms.gob", cms)

@@ -159,7 +159,7 @@ func (wal *Wal) Recovery(table memTable.MemTablesManager) {
 			wal.Write(string(walEntry.Key), walEntry.Value, walEntry.Tombstone)
 			full := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
 			if full != nil {
-				sstable.CreateSStable(full, "file") // treba ustanoviti kako se TACNO nazivaju sstable fajlovi
+				sstable.CreateSStable(full, 1) // treba ustanoviti kako se TACNO nazivaju sstable fajlovi
 			}
 		}
 

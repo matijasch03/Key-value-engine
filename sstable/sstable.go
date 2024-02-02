@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"hash/crc32"
 	"io"
 	"log"
@@ -12,6 +13,9 @@ import (
 	"projekat_nasp/memTable"
 	"strconv"
 	"strings"
+	"sort"
+	"time"
+	"projekat_nasp/config"
 )
 
 type SSTable struct {
@@ -57,7 +61,6 @@ func (st *SSTable) WriteTOC() {
 
 func readSSTable(filename, level string) (table *SSTable) {
 	filename = "data/sstable/usertable" + filename + "-lev" + level + "-TOC.txt"
-
 	file, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -71,6 +74,7 @@ func readSSTable(filename, level string) (table *SSTable) {
 	summaryFilename, _ := reader.ReadString('\n') //3
 	filterFilename, _ := reader.ReadString('\n')  //4
 	generalFilename := strings.ReplaceAll(SSTableFilename, "Data.db\n", "")
+	fmt.Print(summaryFilename)
 
 	table = &SSTable{generalFilename: generalFilename,
 		SSTableFilename: SSTableFilename[:len(SSTableFilename)-1], indexFilename: indexFilename[:len(indexFilename)-1],
@@ -82,9 +86,9 @@ func readSSTable(filename, level string) (table *SSTable) {
 func CRC32(data []byte) uint32 {
 	return crc32.ChecksumIEEE(data)
 }
-
-func CreateSStable(data []memTable.MemTableEntry, filename string) (table *SSTable) {
-	generalFilename := "data/sstable/usertable" + filename + "-lev1-" //
+func CreateSStable(data []memTable.MemTableEntry,level int) (table *SSTable) {
+	unixTime := time.Now().UnixNano()
+	generalFilename := "data/sstable/usertable" + fmt.Sprint(unixTime)+"-lev"+strconv.Itoa(level)+"-"//
 	table = &SSTable{generalFilename, generalFilename + "Data.db", generalFilename + "Index.db",
 		generalFilename + "Summary.db", generalFilename + "Filter.gob"}
 
@@ -199,7 +203,7 @@ func CreateSStable(data []memTable.MemTableEntry, filename string) (table *SSTab
 
 	index := CreateIndex(keys, offset, table.indexFilename)
 	keys, offsets := index.Write()
-	WriteSummary(keys, offsets, table.summaryFilename, 5) // dodao sam 5 jer je pisao error
+	WriteSummary(keys, offsets, table.summaryFilename,5)
 	filter.SaveToFile(table.filterFilename)
 	table.WriteTOC()
 
@@ -325,7 +329,7 @@ func (st *SSTable) SSTableQuery(key string) (ok bool, value []byte, timestamp st
 }
 
 func findSSTableFilename(level string) (filename string) {
-	filenameNum := 1
+	filenameNum := 0
 	filename = strconv.Itoa(filenameNum)
 	possibleFilename := "./data/sstable/usertable" + filename + "-lev" + level + "-TOC.txt"
 
@@ -342,7 +346,7 @@ func findSSTableFilename(level string) (filename string) {
 
 }
 
-func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []byte) {
+func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []byte,table *SSTable) {
 	oldTimestamp := ""
 	found = false
 	levelNum := maxLevels
@@ -368,4 +372,71 @@ func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []by
 		}
 	}
 	return
+}
+// Pronalazenje putanja do tabela
+func GetTables() ([]string, error) {
+	var files []string
+
+	dir, err := os.Open("../data/sstables")
+	defer dir.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	fileInfo, err := dir.Readdir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range fileInfo {
+		files = append(files, file.Name())
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i] > files[j]
+	})
+
+	return files, nil
+}
+func CountRecords(path string) int {
+	f, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	buffer := make([]byte, 8)
+	_, err = f.Read(buffer)
+
+	dataSegmentLength := int(binary.LittleEndian.Uint64(buffer)) - 32 // Duzina data segmenta u bajtovima
+	byteCounter := 0
+	counter := 0
+	recordSize := config.GlobalConfig.KeySizeSize + config.GlobalConfig.ValueSizeSize + config.GlobalConfig.TimestampSize + config.GlobalConfig.TombstoneSize
+
+	_, err = f.Seek(32, 0)
+
+	for byteCounter < dataSegmentLength {
+		keySizeBuff := make([]byte, config.GlobalConfig.KeySizeSize)
+		_, err = f.Read(keySizeBuff)
+		if err != nil {
+			panic(err)
+		}
+		keySize := binary.LittleEndian.Uint64(keySizeBuff)
+
+		valueSizeBuff := make([]byte, config.GlobalConfig.ValueSizeSize)
+		_, err = f.Read(valueSizeBuff)
+		if err != nil {
+			panic(err)
+		}
+		valueSize := binary.LittleEndian.Uint64(valueSizeBuff)
+
+		totalSize := recordSize + int(keySize) + int(valueSize)
+		byteCounter += totalSize
+
+		offset := totalSize - config.GlobalConfig.KeySizeSize - config.GlobalConfig.ValueSizeSize
+		_, err = f.Seek(int64(offset), 1)
+		counter++
+	}
+
+	return counter
 }

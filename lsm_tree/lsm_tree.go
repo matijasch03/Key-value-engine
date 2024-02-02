@@ -1,204 +1,263 @@
 package lsm_tree
 
 import (
-	"bytes"
-	"encoding/gob"
+	"encoding/binary"
 	"fmt"
 	"os"
+	"projekat_nasp/memTable"
+	"projekat_nasp/sstable"
+	"projekat_nasp/config"
 	"sort"
+	"strings"
+
 )
 
-// SSTable predstavlja strukturu za čuvanje podataka u SSTables
-type SSTable struct {
-	GeneralFilename string
-	SSTableFilename string
-	IndexFilename   string
-	SummaryFilename string
-	FilterFilename  string
-	Level           int
-	Data            map[string]string
+const (
+	SSTABLE_SIZE = 1500
+)
+
+type ByKey []memTable.MemTableEntry
+
+func (a ByKey) Len() int {
+	return len(a)
 }
 
-// LSMTree predstavlja strukturu za čuvanje LSM stabla
-type LSMTree struct {
-	MaxLevels int
-	Levels    map[int][]*SSTable
+func (a ByKey) Less(i, j int) bool {
+	return a[i].GetKey() < a[j].GetKey()
 }
 
-// CompactionAlgorithm je interfejs za algoritme kompaktiranja
-type CompactionAlgorithm interface {
-	Compact(lsm *LSMTree, level int)
+func (a ByKey) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
 }
 
-// SizeTieredCompaction je implementacija size-tiered algoritma za kompakciju
-type SizeTieredCompaction struct{}
+type Levels struct {
+	Levels   []*Level
+	MaxLevel int
+}
 
-// Metoda za primenu size-tiered algoritma za kompakciju
-func (stc SizeTieredCompaction) Compact(lsm *LSMTree, level int) {
-	// Sortira SSTables prema veličini podataka
-	sort.Slice(lsm.Levels[level], func(i, j int) bool {
-		return len(lsm.Levels[level][i].Data) < len(lsm.Levels[level][j].Data)
-	})
+type Level struct {
+	Level  int
+	Tables []*os.File
+	Size   int
+}
 
-	// Spaja podatke iz svih SSTables u novu SSTable
-	mergedData := make(map[string]string)
-	for _, sstable := range lsm.Levels[level] {
-		for key, value := range sstable.Data {
-			mergedData[key] = value
+func NewLevel(currentLvl, size int) *Level {
+	var files []*os.File
+	return &Level{currentLvl + 1, files, size * 2}
+}
+
+func (lvl *Level) AddToLevel(path string, levels *Levels) {
+	var allRecords []memTable.MemTableEntry
+	f, err := os.OpenFile(path, os.O_RDONLY, 0600)
+	if err != nil {
+		panic(err)
+	}
+
+	newRecords := GetRecordsOutOfSS(f)
+	allRecords = append(allRecords, newRecords...)
+
+	for _, table := range lvl.Tables {
+		f, err := os.OpenFile(table.Name(), os.O_RDONLY, 0600)
+		if err != nil {
+			panic(err)
+		}
+
+		oldRecs := GetRecordsOutOfSS(f)
+		for _, rec := range oldRecs {
+			exists := false
+			for _, record := range newRecords {
+				if rec.GetKey() == record.GetKey() {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				allRecords = append(allRecords, rec)
+			}
+		}
+		f.Close()
+		err = os.Remove(table.Name())
+		if err != nil {
+			panic(err)
+		}
+		metaFile := strings.Replace(table.Name(), "file", "MetaData", 1)
+		metaFile = metaFile[0 : len(metaFile)-5]
+		metaFile = metaFile + ".txt"
+
+		os.Remove(metaFile)
+	}
+	f.Close()
+	err = os.Remove(path)
+	if err != nil {
+		panic(err)
+	}
+	metaFile := strings.Replace(path, "file", "MetaData", 1)
+	metaFile = metaFile[0 : len(metaFile)-5]
+	metaFile = metaFile + ".txt"
+
+	os.Remove(metaFile)
+	//println(err)
+
+	lvl.Tables = []*os.File{}
+
+	//Sortirani svi recordi po kljucu
+	sort.Sort(ByKey(allRecords))
+	current_size := 0
+	level_size := 0
+	var helper_list []memTable.MemTableEntry
+	for _, record := range allRecords {
+		if current_size > SSTABLE_SIZE {
+			sstable.CreateSStable(helper_list, lvl.Level)
+
+			newTable, _ := sstable.GetTables()
+			newFileName := newTable[0]
+			newFileName = "data/sstable" + newFileName
+
+			newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
+			if err != nil {
+				panic(err)
+			}
+
+			lvl.Tables = append(lvl.Tables, newFile)
+			helper_list = helper_list[:0]
+			helper_list = append(helper_list, record)
+			level_size += current_size
+			current_size = 0
+			newFile.Close()
+
+		} else {
+			helper_list = append(helper_list, record)
+			current_size += 25 + len(record.GetKey()) + len(record.GetValue())
+
+		}
+	}
+	if len(helper_list) != 0 {
+		sstable.CreateSStable(helper_list, lvl.Level)
+
+		newTable, _ := sstable.GetTables()
+		newFileName := newTable[0]
+		newFileName = "../data/sstable" + newFileName
+
+		newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
+		if err != nil {
+			panic(err)
+		}
+
+		lvl.Tables = append(lvl.Tables, newFile)
+		helper_list = helper_list[:0]
+		level_size += current_size
+		current_size = 0
+		newFile.Close()
+
+	}
+
+	for {
+		if lvl.Size < level_size && lvl.Level < levels.MaxLevel {
+			nextLevel := &Level{}
+			//TODO proveriti da li sme da pravi vise levela ili neka samo puni tu
+			for i := 0; i < len(levels.Levels); i++ {
+				if levels.Levels[i].Level == lvl.Level+1 {
+					nextLevel = levels.Levels[i]
+				}
+			}
+			if len(nextLevel.Tables) == 0 {
+				nextLevel = NewLevel(lvl.Level, lvl.Size)
+				levels.Levels = append(levels.Levels, nextLevel)
+			}
+			//dodati da vise tabela moze ici u sledeci nivo
+			f, _ := os.OpenFile(lvl.Tables[0].Name(), os.O_RDONLY, 0600)
+			f.Seek(0, 0)
+			buffer := make([]byte, 8)
+			_, err := f.Read(buffer)
+
+			if err != nil {
+				fmt.Println("Error while reading header")
+			}
+			f.Close()
+			endOfRecords := binary.LittleEndian.Uint64(buffer)
+
+			level_size -= (int(endOfRecords) - 32)
+
+			nextLevel.AddToLevel(lvl.Tables[0].Name(), levels)
+			// f.Close()
+			// err = os.Remove(lvl.Tables[0].Name())
+			// if err != nil {
+			// 	fmt.Println("Error while reading header")
+			// }
+			// metaFile := strings.Replace(lvl.Tables[0].Name(), "file", "MetaData", 1)
+			// metaFile = metaFile[0 : len(metaFile)-5]
+			// metaFile = metaFile + ".txt"
+			// os.Remove(metaFile)
+			lvl.Tables = lvl.Tables[1:]
+			continue
+
+		} else {
+			break
 		}
 	}
 
-	// Dodaje novu SSTable na sledeći nivo
-	nextLevel := level + 1
-	if _, exists := lsm.Levels[nextLevel]; !exists {
-		lsm.Levels[nextLevel] = make([]*SSTable, 0)
-	}
-	newSSTable := &SSTable{
-		Level:           nextLevel,
-		Data:            mergedData,
-		GeneralFilename: fmt.Sprintf("general_%d", nextLevel),
-		SSTableFilename: fmt.Sprintf("sstable_%d", nextLevel),
-		IndexFilename:   fmt.Sprintf("index_%d", nextLevel),
-		SummaryFilename: fmt.Sprintf("summary_%d", nextLevel),
-		FilterFilename:  fmt.Sprintf("filter_%d", nextLevel),
-	}
-	lsm.Levels[nextLevel] = append(lsm.Levels[nextLevel], newSSTable)
+	//prebacivanje u drugi nivo odnosno proveravam da li postoji level vec, ako ne pravim ga i onda radim
+	//ako postoji onda mu pristupam i prolazim kroz add to level v
 
-	// Briše stare SSTables sa trenutnog nivoa
-	lsm.Levels[level] = nil
 }
 
-// LeveledCompaction je implementacija leveled algoritma za kompakciju
-type LeveledCompaction struct{}
-
-// Metoda za primenu leveled algoritma za kompakciju
-func (lc LeveledCompaction) Compact(lsm *LSMTree, level int) {
-	// Povećava nivo za 1
-	nextLevel := level + 1
-
-	// Proverava da li postoji nivo, ako ne, inicijalizuje ga
-	if _, exists := lsm.Levels[nextLevel]; !exists {
-		lsm.Levels[nextLevel] = make([]*SSTable, 0)
+func LeveledCompaction() {
+	var lev []*Level
+	levels := Levels{lev, config.MAX_LEVELS}
+	tables, _ := sstable.GetTables()
+	//reverse the order from oldest to youngest
+	for i, j := 0, len(tables)-1; i < j; i, j = i+1, j-1 {
+		tables[i], tables[j] = tables[j], tables[i]
 	}
-
-	fmt.Println("Leveled Compaction - Nivo:", level)
-	for _, sstable := range lsm.Levels[level] {
-		// Ispisuje podatke iz svake SSTable na trenutnom nivou
-		fmt.Printf("SSTable - Level: %d, Data: %v, General: %s, SSTable: %s, Index: %s, Summary: %s, Filter: %s\n",
-			sstable.Level, sstable.Data, sstable.GeneralFilename, sstable.SSTableFilename,
-			sstable.IndexFilename, sstable.SummaryFilename, sstable.FilterFilename)
+	level1 := NewLevel(0, SSTABLE_SIZE)
+	levels.Levels = append(levels.Levels, level1)
+	for _, table := range tables {
+		level1.AddToLevel("../data/sstable"+table, &levels)
 	}
 }
 
-// Metoda za kompaktiranje nivoa koristeći odabrani algoritam
-func (lsm *LSMTree) CompactLevels(algorithm CompactionAlgorithm, level int) {
-	// Proverava da li postoji nešto za kompaktiranje na trenutnom nivou
-	if len(lsm.Levels[level]) > 0 {
-		// Pokreće odabrani algoritam za kompaktiranje
-		algorithm.Compact(lsm, level)
-	}
-}
+func GetRecordsOutOfSS(f *os.File) []memTable.MemTableEntry {
+	var allRecords []memTable.MemTableEntry
+	f.Seek(0, 0)
+	buffer := make([]byte, 8)
+	_, err := f.Read(buffer)
 
-// Metoda za serijalizaciju LSMTree strukture pomoću Goba
-func (lsm *LSMTree) Serialize() ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := gob.NewEncoder(&buf)
-
-	err := encoder.Encode(lsm)
 	if err != nil {
-		return nil, fmt.Errorf("Greška prilikom GobEncode: %v", err)
+		fmt.Println("Error while reading header")
 	}
 
-	return buf.Bytes(), nil
-}
+	endOfRecords := binary.LittleEndian.Uint64(buffer)
 
-// Metoda za deserijalizaciju LSMTree strukture pomoću Goba
-func (lsm *LSMTree) Deserialize(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(buf)
+	f.Seek(32, 0)
+	for {
+		pos, _ := f.Seek(0, os.SEEK_CUR)
+		if uint64(pos) < endOfRecords {
 
-	err := decoder.Decode(lsm)
-	if err != nil {
-		return fmt.Errorf("Greška prilikom GobDecode: %v", err)
-	}
+			record, _, err := bytesToRecord(f)
+			if err != nil {
+				panic(err)
+			}
 
-	return nil
-}
+			allRecords = append(allRecords, record)
 
-// Metoda za čuvanje LSMTree strukture u datoteku
-func (lsm *LSMTree) SaveToFile(filename string) error {
-	data, err := lsm.Serialize()
-	if err != nil {
-		return err
-	}
+			// _, err = f.Read(buffer)
 
-	err = os.WriteFile(filename, data, 0644)
-	if err != nil {
-		return fmt.Errorf("Greška prilikom pisanja u datoteku: %v", err)
-	}
+			// if err != nil {
+			// 	fmt.Println("Error while reading key size")
+			// }
+			// keySize := binary.LittleEndian.Uint64(buffer)
 
-	return nil
-}
-
-// Metoda za učitavanje LSMTree strukture iz datoteke
-func (lsm *LSMTree) LoadFromFile(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("Greška prilikom čitanja iz datoteke: %v", err)
-	}
-
-	err = lsm.Deserialize(data)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Funkcija za dodavanje podataka u LSMTree
-func (lsm *LSMTree) AddData(level int, key, value string) {
-	// Proverava da li postoji nivo, ako ne, inicijalizuje ga
-	if _, exists := lsm.Levels[level]; !exists {
-		lsm.Levels[level] = make([]*SSTable, 0)
-	}
-
-	// Proverava da li postoji SSTable za dati nivo, ako ne, inicijalizuje ga
-	if len(lsm.Levels[level]) == 0 || lsm.Levels[level][len(lsm.Levels[level])-1].Level != level {
-		sstable := &SSTable{
-			Level: level,
-			Data:  make(map[string]string),
-			// Dodajte ostale informacije za SSTable...
+			// // Value size
+			// _, err = f.Read(buffer)
+			// if err != nil {
+			// 	fmt.Println("Error while reading value size")
+			// }
+			// valueSize := binary.LittleEndian.Uint64(buffer)
+		} else {
+			return allRecords
 		}
-		lsm.Levels[level] = append(lsm.Levels[level], sstable)
 	}
 
-	// Dodaje podatke u mapu Data unutar SSTable
-	sstable := lsm.Levels[level][len(lsm.Levels[level])-1]
-	sstable.Data[key] = value
 }
 
-/* Primer korišćenja:
-func main() {
-	lsm := &LSMTree{
-		MaxLevels: 3,
-		Levels:    make(map[int][]*SSTable),
-	}
-
-	// Čuvanje u datoteku
-	err := lsm.SaveToFile("lsm_tree.gob")
-	if err != nil {
-		fmt.Println("Greška prilikom čuvanja u datoteku:", err)
-		return
-	}
-
-	// Učitavanje iz datoteke
-	lsm2 := &LSMTree{}
-	err = lsm2.LoadFromFile("lsm_tree.gob")
-	if err != nil {
-		fmt.Println("Greška prilikom učitavanja iz datoteke:", err)
-		return
-	}
-
-	// Ispisivanje učitanih podataka
-	fmt.Println("Učitani LSMTree:", lsm2)
-}*/
+//treba dodati da vise tabela ide u next level
