@@ -116,7 +116,7 @@ func main() {
 				os.Exit(0)
 			default:
 				fmt.Println("Invalid choice. Please enter a valid option.")
-				memtable.Print()
+				//memtable.Print()
 			}
 		} else {
 			fmt.Println("You have reached request limit. Please wait a bit.")
@@ -142,10 +142,9 @@ func Start() (*wal.Wal, memTable.MemTablesManager, *token_bucket.TokenBucket, *c
 	cache := cache.NewCache(10)
 
 	///treba srediti imena fajlova i dodati za errore
-	myWal.Recovery(memtable)
+	myWal.Recovery(&memtable)
 	bloom_filter, _ := bloom_filter.LoadFromFile("data/bloom_filter/bf.gob")
 	hll := hyperloglog.UcitajHLL("./data/hyperloglog/hll.gob")
-	fmt.Println(hll)
 	var cms = new(countMinSketch.CountMinSketch)
 	_ = countMinSketch.ReadGob("./data/count_min_sketch/cms.gob", cms)
 	simhash, _ := simhash.DeserializeSH([]byte("???"))

@@ -207,6 +207,7 @@ func (memTables *MemTablesManager) IsFull() bool {
 	return false
 }
 func (memTables *MemTablesManager) Print() {
+	fmt.Printf("Active table: %d \n", memTables.active)
 	for i := 0; i < memTables.maxInstances; i++ {
 		fmt.Printf("Tabela %d : \n", i)
 		memTables.tables[i].Print()

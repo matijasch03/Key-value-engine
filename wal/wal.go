@@ -131,7 +131,7 @@ func (wal *Wal) DeleteSegments() {
 
 }
 
-func (wal *Wal) Recovery(table memTable.MemTablesManager) {
+func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
 
 	files, _ := os.ReadDir(wal.Path + string(os.PathSeparator))
 	fileCount := len(files)
@@ -156,7 +156,6 @@ func (wal *Wal) Recovery(table memTable.MemTablesManager) {
 				break
 			}
 			fmt.Println(walEntry.Validate())
-
 			if walEntry.Tombstone == 0 {
 				full := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
 				if full != nil {
