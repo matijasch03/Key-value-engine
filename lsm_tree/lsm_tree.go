@@ -6,7 +6,7 @@ import (
 	"os"
 	"projekat_nasp/memTable"
 	"projekat_nasp/sstable"
-	//"projekat_nasp/config"
+	"projekat_nasp/config"
 	"sort"
 	"strings"
 
@@ -201,9 +201,9 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 
 }
 
-func LeveledCompaction(maxLevels int) {
+func LeveledCompaction() {
 	var lev []*Level
-	levels := Levels{lev, maxLevels}
+	levels := Levels{lev, config.MAX_LEVELS}
 	tables, _ := sstable.GetTables()
 	//reverse the order from oldest to youngest
 	for i, j := 0, len(tables)-1; i < j; i, j = i+1, j-1 {
