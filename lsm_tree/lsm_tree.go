@@ -4,12 +4,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"projekat_nasp/memTable"
-	"projekat_nasp/sstable"
-	"projekat_nasp/config"
 	"sort"
 	"strings"
 
+	"projekat_nasp/config"
+	"projekat_nasp/memtable"
+	"projekat_nasp/sstable"
 )
 
 const (
@@ -105,13 +105,14 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 	current_size := 0
 	level_size := 0
 	var helper_list []memTable.MemTableEntry
+
 	for _, record := range allRecords {
 		if current_size > SSTABLE_SIZE {
-			sstable.CreateSStable(helper_list, lvl.Level)
+			sstable.NewSSTable(helper_list, lvl.Level)
 
 			newTable, _ := sstable.GetTables()
 			newFileName := newTable[0]
-			newFileName = "data/sstable" + newFileName
+			newFileName = "resources\\" + newFileName
 
 			newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
 			if err != nil {
@@ -132,11 +133,11 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 		}
 	}
 	if len(helper_list) != 0 {
-		sstable.CreateSStable(helper_list, lvl.Level)
+		sstable.NewSSTable(helper_list, lvl.Level)
 
 		newTable, _ := sstable.GetTables()
 		newFileName := newTable[0]
-		newFileName = "../data/sstable" + newFileName
+		newFileName = "resources\\" + newFileName
 
 		newFile, err := os.OpenFile(newFileName, os.O_RDONLY, 0600)
 		if err != nil {
@@ -202,9 +203,10 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 }
 
 func LeveledCompaction() {
+	maxLevels := config.GlobalConfig.MaxLevels
 	var lev []*Level
-	levels := Levels{lev, config.MAX_LEVELS}
-	tables, _ := sstable.GetTables()
+	levels := Levels{lev, maxLevels}
+	tables, _ := sstable_all_in_one.GetTables()
 	//reverse the order from oldest to youngest
 	for i, j := 0, len(tables)-1; i < j; i, j = i+1, j-1 {
 		tables[i], tables[j] = tables[j], tables[i]
@@ -212,7 +214,7 @@ func LeveledCompaction() {
 	level1 := NewLevel(0, SSTABLE_SIZE)
 	levels.Levels = append(levels.Levels, level1)
 	for _, table := range tables {
-		level1.AddToLevel("../data/sstable"+table, &levels)
+		level1.AddToLevel("data\\"+table, &levels)
 	}
 }
 
