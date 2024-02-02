@@ -52,11 +52,11 @@ func writeBlock(recordByte *[]byte, path string) {
 	w.Flush()
 }
 
-func writeSSTable(data []memTable.MemTableEntry, sstable *SSTable_Unique) {
+func writeSSTable(data *[]memTable.MemTableEntry, sstable *SSTable_Unique) {
 	block_size := 2
-	for i := 0; i < len(data); i++ {
-		node := data[i]
-
+	//for i := 0; i < len(*data); i++ {
+	//node := data[i]
+	for i, node := range *data {
 		in := append([]byte(node.GetKey()), node.GetValue()...)
 		sstable.merkleData = append(sstable.merkleData, in)
 		in = nil
@@ -175,7 +175,7 @@ func writeBloomFilter(sstable *SSTable_Unique) {
 	}
 }
 
-func NewSSTable(data []memTable.MemTableEntry, level int) {
+func NewSSTable(data *[]memTable.MemTableEntry, level int) {
 	var sstable SSTable_Unique
 	sstable.unixTime = time.Now().UnixNano()
 	sstable.path = "data\\file_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
@@ -190,6 +190,6 @@ func NewSSTable(data []memTable.MemTableEntry, level int) {
 	sstable.bFDataSize = 0
 	writeHeader(&sstable)
 
-	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(data), FALSE_POSITIVE_RATE)
+	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(*data), FALSE_POSITIVE_RATE)
 	writeSSTable(data, &sstable)
 }

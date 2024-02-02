@@ -103,7 +103,7 @@ func (index *SSIndex) Write() (keys []string, offsets []uint) {
 	return
 }
 
-/*func WriteSummary(keys []string, offsets []uint, filename string) {
+func WriteSummary(keys []string, offsets []uint, filename string) {
 	file, err := os.Create(filename)
 	if err != nil {
 		return
@@ -152,9 +152,9 @@ func (index *SSIndex) Write() (keys []string, offsets []uint) {
 			return
 		}
 	}
-}*/
+}
 
-func WriteSummary(keys []string, offsets []uint, filename string, step int) {
+/*func WriteSummary_13(keys []string, offsets []uint, filename string, step int) { //sa stepenom prorjeđenosti
 	file, err := os.Create(filename)
 	if err != nil {
 		log.Fatal(err)
@@ -174,7 +174,6 @@ func WriteSummary(keys []string, offsets []uint, filename string, step int) {
 		key := keys[i]
 		offset := offsets[i]
 
-		// Dodajte proveru koraka proređenosti
 		if i%step != 0 {
 			continue
 		}
@@ -203,7 +202,7 @@ func WriteSummary(keys []string, offsets []uint, filename string, step int) {
 			log.Fatal(err)
 		}
 	}
-}
+}*/
 
 func FindSummary(key, filename string) (ok bool, offset int64) {
 	ok = false
