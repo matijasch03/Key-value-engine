@@ -1,4 +1,4 @@
-package tokenbucket
+package token_bucket
 
 import (
 	"time"

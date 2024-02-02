@@ -107,6 +107,7 @@ func UcitajHLL(putanja string) HLL {
 
 	hll.hasher32 = fnv.New32a()
 	hll.hasher64 = fnv.New64a()
+
 	return *hll
 }
 

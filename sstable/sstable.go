@@ -200,7 +200,7 @@ func CreateSStable(data []memTable.MemTableEntry, filename string) (table *SSTab
 
 	index := CreateIndex(keys, offset, table.indexFilename)
 	keys, offsets := index.Write()
-	WriteSummary(keys, offsets, table.summaryFilename,1)
+	WriteSummary(keys, offsets, table.summaryFilename,5)
 	filter.SaveToFile(table.filterFilename)
 	table.WriteTOC()
 
