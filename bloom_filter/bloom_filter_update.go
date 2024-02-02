@@ -29,6 +29,11 @@ func CreateHashFunctions(k uint) []HashWithSeed {
 	}
 	return h
 }
+type BloomFilterUnique struct {
+	M             uint
+	Data          []byte
+	HashFunctions []HashWithSeed
+}
 func CalculateM(expectedElements int, falsePositiveRate float64) uint {
 	return uint(math.Ceil(float64(expectedElements) * math.Abs(math.Log(falsePositiveRate)) / math.Pow(math.Log(2), float64(2))))
 }
@@ -36,16 +41,10 @@ func CalculateM(expectedElements int, falsePositiveRate float64) uint {
 func CalculateK(expectedElements int, m uint) uint {
 	return uint(math.Ceil((float64(m) / float64(expectedElements)) * math.Log(2)))
 }
-type BloomFilterUpdated struct {
-	M             uint
-	Data          []byte
-	HashFunctions []HashWithSeed
-}
-
 // Konstruktor za bloomfilter
 // expectedElements -> ocekivani broj elemenata
 // falsePositiveRate -> tolerancija na gresku
-func NewBloomFilterUpdated(expectedElements int, falsePositiveRate float64) *BloomFilterUpdated {
+func NewBloomFilterUnique(expectedElements int, falsePositiveRate float64) *BloomFilterUnique {
 	m := CalculateM(expectedElements, falsePositiveRate) // broj bitova
 	k := CalculateK(expectedElements, m)                 // broj hash funkcija
 
@@ -53,14 +52,14 @@ func NewBloomFilterUpdated(expectedElements int, falsePositiveRate float64) *Blo
 	bytesNum := math.Ceil(float64(m) / 8)   // broj bajtova
 	data := make([]byte, int(bytesNum))     // niz velicine m
 
-	b := BloomFilterUpdated{m, data, hashFunctions}
+	b := BloomFilterUnique{m, data, hashFunctions}
 
 	return &b
 }
 
 // Dodavanje elementa u bloomfilter
 // data -> element za dodavanje
-func (b BloomFilterUpdated) Add(data []byte) {
+func (b BloomFilterUnique) Add(data []byte) {
 	for _, hashFunction := range b.HashFunctions {
 		hashed := hashFunction.Hash(data)
 		bit := hashed % uint64(b.M) // bit u nizu
@@ -74,7 +73,7 @@ func (b BloomFilterUpdated) Add(data []byte) {
 
 // Citanje elementa
 // data -> element za citanje
-func (b BloomFilterUpdated) Read(data []byte) bool {
+func (b BloomFilterUnique) Read(data []byte) bool {
 	for _, hashFunction := range b.HashFunctions {
 		// Isto kao kod pisanja
 		hashed := hashFunction.Hash(data)
@@ -93,7 +92,7 @@ func (b BloomFilterUpdated) Read(data []byte) bool {
 	return true
 }
 
-func (b BloomFilter) Save() []byte {
+func (b BloomFilterUnique) Save() []byte {
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
 	encoder.Encode(b)
@@ -101,12 +100,12 @@ func (b BloomFilter) Save() []byte {
 	return buffer.Bytes()
 }
 
-func Load(data []byte) *BloomFilter {
+func Load(data []byte) *BloomFilterUnique {
 	var buffer bytes.Buffer
 	buffer.Write(data)
 	decoder := gob.NewDecoder(&buffer)
 
-	b := &BloomFilter{}
+	b := &BloomFilterUnique{}
 	err := decoder.Decode(b)
 	if err != nil {
 		panic("error while decoding")
