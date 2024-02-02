@@ -6,7 +6,6 @@ import (
 	"os"
 	"projekat_nasp/memTable"
 	"projekat_nasp/sstable"
-	"projekat_nasp/config"
 	"sort"
 	"strings"
 
@@ -108,7 +107,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 
 	for _, record := range allRecords {
 		if current_size > SSTABLE_SIZE {
-			sstable.NewSSTable(&helper_list, lvl.Level)
+			//sstable.NewSSTable(&helper_list, lvl.Level)
 
 			newTable, _ := sstable.GetTables()
 			newFileName := newTable[0]
@@ -133,7 +132,7 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 		}
 	}
 	if len(helper_list) != 0 {
-		sstable.NewSSTable(&helper_list, lvl.Level)
+		//sstable.NewSSTable(&helper_list, lvl.Level)
 
 		newTable, _ := sstable.GetTables()
 		newFileName := newTable[0]
@@ -201,9 +200,9 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 	//ako postoji onda mu pristupam i prolazim kroz add to level v
 
 }
-
+/*
 func LeveledCompaction() {
-	maxLevels := config.GlobalConfig.MaxLevels
+	//maxLevels := config.GlobalConfig.MaxLevels
 	var lev []*Level
 	levels := Levels{lev, maxLevels}
 	tables, _ := sstable.GetTables()
@@ -216,7 +215,7 @@ func LeveledCompaction() {
 	for _, table := range tables {
 		level1.AddToLevel("data\\"+table, &levels)
 	}
-}
+}*/
 func bytesToRecord(f *os.File) (memTable.MemTableEntry, int64, error) {
 	// Struktura: KS(8), VS(8), TIME(8), TB(1), K(...), V(...)
 	buffer := make([]byte, 8)
