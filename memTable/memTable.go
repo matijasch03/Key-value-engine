@@ -2,6 +2,8 @@ package memTable
 
 import (
 	"fmt"
+	"projekat_nasp/config"
+	"encoding/binary"
 )
 
 type memTable interface {
@@ -220,3 +222,19 @@ func (memTables *memTablesManager) Print() {
 
 	tables.Sort()
 */
+func BytesToRecord(b []byte) MemTableEntry {
+	timestampBytes := b[config.GlobalConfig.TimestampStart : config.GlobalConfig.TimestampStart+config.GlobalConfig.TimestampSize]
+	timestamp := binary.LittleEndian.Uint64(timestampBytes)
+
+	tombstoneByte := b[config.GlobalConfig.TombstoneStart]
+
+	keySizeBytes := b[config.GlobalConfig.KeySizeStart : config.GlobalConfig.KeySizeStart+config.GlobalConfig.KeySizeSize]
+	keySize := binary.LittleEndian.Uint64(keySizeBytes)
+	key := string(b[config.GlobalConfig.KeyStart : int64(config.GlobalConfig.KeyStart)+int64(keySize)])
+
+	valueSizeBytes := b[config.GlobalConfig.ValueSizeStart : config.GlobalConfig.ValueSizeStart+config.GlobalConfig.ValueSizeSize]
+	valueSize := binary.LittleEndian.Uint64(valueSizeBytes)
+	value := b[int64(config.GlobalConfig.KeyStart)+int64(keySize) : int64(config.GlobalConfig.KeyStart)+int64(keySize)+int64(valueSize)]
+
+	return MemTableEntry{key: key, value: value, timestamp: uint64(timestamp), tombstone: tombstoneByte}
+}
