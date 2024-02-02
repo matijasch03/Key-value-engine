@@ -5,9 +5,25 @@ import (
 	"bytes"
 	"encoding/binary"
 	"os"
+	"path"
 	"projekat_nasp/bloom_filter"
 	"projekat_nasp/memTable"
+	"strings"
 )
+
+func Main_search(keys []string) []memTable.MemTableEntry {
+	files, _ := GetTables()
+	for _, file := range files {
+		if strings.HasPrefix(file, "file_") {
+			filePath := path.Join("data/sstable/", file)
+			retVal := FindByKey(keys, filePath, false)
+			if len(retVal) > 0 {
+				return retVal
+			}
+		}
+	}
+	return []memTable.MemTableEntry{}
+}
 
 func FindByKey(keys []string, path string, full bool) []memTable.MemTableEntry {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0600)
