@@ -190,6 +190,6 @@ func NewSSTable(data []memTable.MemTableEntry, level int) {
 	sstable.bFDataSize = 0
 	writeHeader(&sstable)
 
-	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(*data), FALSE_POSITIVE_RATE)
+	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(data), FALSE_POSITIVE_RATE)
 	writeSSTable(data, &sstable)
 }
