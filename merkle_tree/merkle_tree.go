@@ -3,84 +3,73 @@ package merkletree
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"os"
-	"strconv"
 )
 
 type MerkleRoot struct {
-	Root *NodeMerkle //top of the tree
+	root *Node
 }
 
-func (mr *MerkleRoot) String() string { //returns the hexadecimal representation of the byte-value of the root node
-	return mr.Root.String()
+func (mr *MerkleRoot) String() string {
+	return mr.root.String()
 }
 
-type NodeMerkle struct { // node in the tree
-	value []byte
-	left  *NodeMerkle //pointer to the left child
-	right *NodeMerkle //pointer to the right child
+type Node struct {
+	data  []byte
+	left  *Node
+	right *Node
 }
 
-func (n *NodeMerkle) String() string { //returns the hexadecimal representation of the node's byte-value
-	return hex.EncodeToString(n.value[:])
+func (n *Node) String() string {
+	return hex.EncodeToString(n.data[:])
 }
 
-func Hash(data []byte) [20]byte {
-	return sha1.Sum(data)
+func Hash(data []byte) []byte {
+	h := sha1.Sum(data)
+	return h[:]
 }
 
-func NewMerkleTree(parts []NodeMerkle) *MerkleRoot {
-	elems := MakeNodes(parts)
-	return &MerkleRoot{Root: &elems[0]}
-}
-
-func MakeNodes(parts []NodeMerkle) []NodeMerkle { //parts - list of nodes
-	next_gen := []NodeMerkle{} //for parents
-	if len(parts)%2 == 1 {
-		parts = append(parts, NodeMerkle{value: []byte("")}) //add one more, because the number of nodes must be even
+func SerializeMerkleTree(root *Node, file *os.File) {
+	if root == nil {
+		return
 	}
-	counter := 0
-	for len(parts) > counter {
-		currentParents := parts[counter : counter+2]
-		left := currentParents[0]
-		right := currentParents[1]
-		childrenVal := append(left.value[:], right.value[:]...)
-		hashVal := Hash(childrenVal)
-		if len(right.value) == 0 {
-			next_gen = append(next_gen, NodeMerkle{value: hashVal[:], left: &left, right: nil})
-		} else {
-			next_gen = append(next_gen, NodeMerkle{value: hashVal[:], left: &left, right: &right})
+
+	fmt.Fprintln(file, root.String())
+	SerializeMerkleTree(root.left, file)
+	SerializeMerkleTree(root.right, file)
+}
+
+func BuildMerkleTree(data [][]byte, unixTime int64) {
+	if len(data) == 0 {
+		return
+	}
+
+	var nodes []*Node
+	for _, d := range data {
+		nodes = append(nodes, &Node{data: Hash(d)})
+	}
+
+	for len(nodes) > 1 {
+		var newNodes []*Node
+		for i := 0; i < len(nodes); i += 2 {
+			var left, right *Node
+			if i+1 < len(nodes) {
+				left = nodes[i]
+				right = nodes[i+1]
+			} else {
+				left = nodes[i]
+				right = nodes[i]
+			}
+
+			data := append(left.data[:], right.data[:]...)
+			newNodes = append(newNodes, &Node{data: Hash(data), left: left, right: right})
 		}
-		counter += 2
+		nodes = newNodes
 	}
-	if len(next_gen) == 1 {
-		return next_gen
-	} else {
-		return MakeNodes(next_gen) //until the root is obtained
-	}
-}
 
-func (n *NodeMerkle) WriteToFile(level int, index int) {
-	file, err := os.OpenFile("Data/merkle_tree_lvl"+strconv.Itoa(level)+"_idx"+strconv.Itoa(index)+".txt", os.O_WRONLY|os.O_CREATE, 0777)
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-
-		}
-	}(file)
-	if err != nil {
-		panic(err)
-	}
-	n.WriteToFileHelper(file)
-}
-
-func (n *NodeMerkle) WriteToFileHelper(file *os.File) {
-	file.Write([]byte(n.String()))
-	file.Write([]byte(";"))
-	if n.left != nil { //preorder
-		n.left.WriteToFileHelper(file)
-	}
-	if n.right != nil {
-		n.right.WriteToFileHelper(file)
-	}
+	file, _ := os.Create("data\\MetaData_" + fmt.Sprint(unixTime) + ".txt")
+	defer file.Close()
+	root := &MerkleRoot{root: nodes[0]}
+	SerializeMerkleTree(root.root, file)
 }
