@@ -178,7 +178,7 @@ func writeBloomFilter(sstable *SSTable_Unique) {
 func NewSSTable(data *[]memTable.MemTableEntry, level int) {
 	var sstable SSTable_Unique
 	sstable.unixTime = time.Now().UnixNano()
-	sstable.path = "data\\file_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
+	sstable.path = "data/sstable/file_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
 	file, err := os.Create(sstable.path)
 	if err != nil {
 		panic(err)

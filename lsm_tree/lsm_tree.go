@@ -179,15 +179,6 @@ func (lvl *Level) AddToLevel(path string, levels *Levels) {
 			level_size -= (int(endOfRecords) - 32)
 
 			nextLevel.AddToLevel(lvl.Tables[0].Name(), levels)
-			// f.Close()
-			// err = os.Remove(lvl.Tables[0].Name())
-			// if err != nil {
-			// 	fmt.Println("Error while reading header")
-			// }
-			// metaFile := strings.Replace(lvl.Tables[0].Name(), "file", "MetaData", 1)
-			// metaFile = metaFile[0 : len(metaFile)-5]
-			// metaFile = metaFile + ".txt"
-			// os.Remove(metaFile)
 			lvl.Tables = lvl.Tables[1:]
 			continue
 
@@ -240,25 +231,9 @@ func GetRecordsOutOfSS(f *os.File) []memTable.MemTableEntry {
 			}
 
 			allRecords = append(allRecords, record)
-
-			// _, err = f.Read(buffer)
-
-			// if err != nil {
-			// 	fmt.Println("Error while reading key size")
-			// }
-			// keySize := binary.LittleEndian.Uint64(buffer)
-
-			// // Value size
-			// _, err = f.Read(buffer)
-			// if err != nil {
-			// 	fmt.Println("Error while reading value size")
-			// }
-			// valueSize := binary.LittleEndian.Uint64(buffer)
 		} else {
 			return allRecords
 		}
 	}
 
 }
-
-//treba dodati da vise tabela ide u next level

@@ -68,7 +68,7 @@ func BuildMerkleTree(data [][]byte, unixTime int64) {
 		nodes = newNodes
 	}
 
-	file, _ := os.Create("data\\MetaData_" + fmt.Sprint(unixTime) + ".txt")
+	file, _ := os.Create("../resources/MetaData_" + fmt.Sprint(unixTime) + ".txt")
 	defer file.Close()
 	root := &MerkleRoot{root: nodes[0]}
 	SerializeMerkleTree(root.root, file)
