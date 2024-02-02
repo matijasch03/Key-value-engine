@@ -312,4 +312,4 @@ func GetRecordsOutOfSS(f *os.File) []memTable.MemTableEntry {
 
 }
 
-//treba dodati da vise tabela ide u next level
+//treba dodati da vise tabela ide u next level 
