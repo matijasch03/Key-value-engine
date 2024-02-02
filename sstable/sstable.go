@@ -87,6 +87,7 @@ func CRC32(data []byte) uint32 {
 	return crc32.ChecksumIEEE(data)
 }
 func CreateSStable(data []memTable.MemTableEntry, level int) (table *SSTable) {
+	NewSSTable(&data, level)
 	unixTime := time.Now().UnixNano()
 	generalFilename := "data/sstable/usertable" + fmt.Sprint(unixTime) + "-lev" + strconv.Itoa(level) + "-" //
 	table = &SSTable{generalFilename, generalFilename + "Data.db", generalFilename + "Index.db",
@@ -502,7 +503,7 @@ func SearchThroughSSTables(key string, maxLevels int) (found bool, oldValue []by
 func GetTables() ([]string, error) {
 	var files []string
 
-	dir, err := os.Open("../data/sstables")
+	dir, err := os.Open("data/sstable")
 	defer dir.Close()
 	if err != nil {
 		return nil, err

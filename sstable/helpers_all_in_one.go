@@ -47,7 +47,6 @@ func checkBloomFilter(file *os.File, key string) bool {
 	var bF bloom_filter.BloomFilterUnique
 	var bfpos int64
 	var bfDS int64
-	// cita gde je bf
 	file.Seek(16, 0)
 	bufferedReader := bufio.NewReader(file)
 	byteSlice := make([]byte, M_SIZE)
