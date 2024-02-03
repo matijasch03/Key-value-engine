@@ -14,10 +14,10 @@ import (
 
 type Wal struct {
 	Data               []*WalEntry
-	MaxDataSize        uint32
+	MaxDataSize        uint32 // broj entrija
 	Path               string
 	CurrentFileEntries uint32
-	MaxFileSize        uint32
+	MaxFileSize        uint32 // bajtovi
 	Prefix             string
 	CurrentFilename    uint32
 	LowWatermark       uint32
@@ -31,6 +31,7 @@ func NewWal() *Wal {
 	wal := Wal{
 		Path:               "logs",
 		CurrentFileEntries: 0,
+		MaxDataSize:        uint32(config.WAL_DATA_SIZE),
 		MaxFileSize:        uint32(config.WAL_FILE_SIZE),
 		Prefix:             "wal.0.0.",
 		CurrentFilename:    uint32(currentFilename),
@@ -50,16 +51,72 @@ func (wal *Wal) Write(key string, value []byte, tombstone byte) *WalEntry {
 		log.Fatal(err)
 	}
 
-	currentFile.Seek(0, io.SeekEnd)
-	currentFile.Write(newWalEntry.ToBytes())
-	wal.CurrentFileEntries++
-
-	if wal.CurrentFileEntries >= wal.MaxFileSize {
-		wal.CurrentFilename++
-		currentFile.Close()
-		currentFile, _ = os.OpenFile(wal.Path+string(os.PathSeparator)+wal.Prefix+strconv.Itoa(int(wal.CurrentFilename))+".log", os.O_RDWR|os.O_CREATE, 0666)
-		wal.CurrentFileEntries = 0
+	fileInfo, err := currentFile.Stat()
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	remainingBytes := len(newWalEntry.ToBytes())
+	print("remaningBytes: ", remainingBytes)
+	for remainingBytes > 0 {
+		print("remainingBytes: ", remainingBytes, "\n")
+		print("trenutni fajl: ", wal.CurrentFilename, "\n")
+		// Check if the number of entries in the current file exceeds the limit
+		if wal.CurrentFileEntries >= wal.MaxDataSize {
+			wal.CurrentFilename++
+			currentFile.Close()
+
+			// Open a new file
+			currentFilePath := wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(int(wal.CurrentFilename)) + ".log"
+			currentFile, err = os.OpenFile(currentFilePath, os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fileInfo, err = currentFile.Stat()
+			if err != nil {
+				log.Fatal(err)
+			}
+			// Reset the entry count for the new file
+			wal.CurrentFileEntries = 0
+		}
+
+		// Determine how many bytes to write in the current iteration
+		writeBytes := min(remainingBytes, int(wal.MaxFileSize)-int(fileInfo.Size()))
+		print("writeBytes: ", writeBytes)
+		print("maxFileSize: ", int(wal.MaxFileSize))
+
+		// Write the new entry bytes to the current file
+		currentFile.Seek(0, io.SeekEnd)
+		_, err = currentFile.Write(newWalEntry.ToBytes()[len(newWalEntry.ToBytes())-remainingBytes : len(newWalEntry.ToBytes())-remainingBytes+writeBytes])
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if writeBytes < remainingBytes {
+			// number of bytes written is less than number of bytes remaining -> we exceeded the limit so we create new file
+			wal.CurrentFilename++
+			currentFile.Close()
+
+			// Open a new file
+			currentFilePath := wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(int(wal.CurrentFilename)) + ".log"
+			currentFile, err = os.OpenFile(currentFilePath, os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			wal.CurrentFileEntries = 0
+
+			fileInfo, err = currentFile.Stat()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		// Update counters and loop variables
+		remainingBytes -= writeBytes
+		wal.CurrentFileEntries++
+	}
+
 	currentFile.Close()
 
 	return newWalEntry
