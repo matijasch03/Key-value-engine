@@ -43,8 +43,7 @@ const (
 	KEY_START             = VALUE_SIZE_START + VALUE_SIZE_SIZE
 	HYPERLOGLOG_PRECISION = 8
 	HYPERLOGLOG64BITHASH  = false
-	WAL_DATA_SIZE         = 10
-	WAL_FILE_SIZE         = 10
+	WAL_FILE_SIZE         = 3
 	WAL_LOW_WATER_MARK    = 3
 )
 
@@ -81,7 +80,6 @@ type Config struct {
 	BTreeOrder             int     `json:"bTreeOrder"`
 	HyperloglogPrecision   int     `json:"HyperloglogPrecision"`
 	Hyperloglog64bitHash   bool    `json:"Hyperloglog64bitHash"`
-	WalDataSize            int     `json:"WalDataSize"`
 	WalFileSize            int     `json:"WalFileSize"`
 	WalLowWaterMark        int     `json:"WalLowWaterMark"`
 }
@@ -122,7 +120,6 @@ func NewConfig(filename string) *Config {
 		config.KeyStart = KEY_START
 		config.HyperloglogPrecision = HYPERLOGLOG_PRECISION
 		config.Hyperloglog64bitHash = HYPERLOGLOG64BITHASH
-		config.WalDataSize = WAL_DATA_SIZE
 		config.WalFileSize = WAL_FILE_SIZE
 		config.WalLowWaterMark = WAL_LOW_WATER_MARK
 	} else {
