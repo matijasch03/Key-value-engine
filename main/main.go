@@ -106,7 +106,6 @@ func main() {
 				}
 			case 7: //EXIT
 				fmt.Println("Exiting...")
-				myWal.Dump()
 				data := memtable.Sort()
 				sstable.CreateSStable(data, 1)
 				//bloom_filter.SaveToFile("data/bloom_filter/bf.gob")

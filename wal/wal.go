@@ -29,8 +29,6 @@ func NewWal() *Wal {
 	currentFilename := len(files)
 
 	wal := Wal{
-		Data:               make([]*WalEntry, 0),
-		MaxDataSize:        uint32(config.WAL_DATA_SIZE),
 		Path:               "logs",
 		CurrentFileEntries: 0,
 		MaxFileSize:        uint32(config.WAL_FILE_SIZE),
@@ -44,13 +42,25 @@ func NewWal() *Wal {
 
 func (wal *Wal) Write(key string, value []byte, tombstone byte) *WalEntry {
 
-	if uint32(len(wal.Data)) >= wal.MaxDataSize {
-		wal.Dump()
-	}
-
 	newWalEntry := NewWalEntry(tombstone)
 	newWalEntry.Write(key, value)
-	wal.Data = append(wal.Data, newWalEntry)
+
+	currentFile, err := os.OpenFile(wal.Path+string(os.PathSeparator)+wal.Prefix+strconv.Itoa(int(wal.CurrentFilename))+".log", os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	currentFile.Seek(0, io.SeekEnd)
+	currentFile.Write(newWalEntry.ToBytes())
+	wal.CurrentFileEntries++
+
+	if wal.CurrentFileEntries >= wal.MaxFileSize {
+		wal.CurrentFilename++
+		currentFile.Close()
+		currentFile, _ = os.OpenFile(wal.Path+string(os.PathSeparator)+wal.Prefix+strconv.Itoa(int(wal.CurrentFilename))+".log", os.O_RDWR|os.O_CREATE, 0666)
+		wal.CurrentFileEntries = 0
+	}
+	currentFile.Close()
 
 	return newWalEntry
 
@@ -64,7 +74,7 @@ func (wal *Wal) Delete(key string, tombstone byte) {
 
 }
 
-func (wal *Wal) Dump() bool {
+/* func (wal *Wal) Dump() bool {
 
 	currentFile, err := os.OpenFile(wal.Path+string(os.PathSeparator)+wal.Prefix+strconv.Itoa(int(wal.CurrentFilename))+".log", os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
@@ -90,7 +100,7 @@ func (wal *Wal) Dump() bool {
 	currentFile.Close()
 	return true
 
-}
+} */
 
 func (wal *Wal) DeleteSegments() {
 
