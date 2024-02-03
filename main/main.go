@@ -55,6 +55,7 @@ func main() {
 					} else {
 
 						//pretraziti sstable, i onda dodati u cache
+
 					}
 				}
 
@@ -71,8 +72,18 @@ func main() {
 				entry := memTable.NewMemTableEntry(key, []byte(value), 0, walEntry.Timestamp)
 				full := memtable.Add(entry)
 				if full != nil {
-					sstable.CreateSStable(full, 1)
-					broj = broj + 1
+					if config.GlobalConfig.SStableAllInOne == false {
+						if config.GlobalConfig.SStableDegree != 0 {
+							sstable.CreateSStable_13(full, 1, config.GlobalConfig.SStableDegree)
+							broj = broj + 1
+						} else {
+							sstable.CreateSStable(full, 1)
+							broj = broj + 1
+						}
+					} else {
+						sstable.NewSSTable(&full, 1)
+						broj = broj + 1
+					}
 				}
 				cache.AddItem(key, value)
 				hll.Add(key)

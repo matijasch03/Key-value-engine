@@ -46,6 +46,8 @@ const (
 	WAL_DATA_SIZE         = 3
 	WAL_FILE_SIZE         = 20
 	WAL_LOW_WATER_MARK    = 3
+	SSTABLE_DEGREE        = 0
+	SSTABLE_ALL_IN_ONE    = true
 )
 
 type Config struct {
@@ -84,6 +86,8 @@ type Config struct {
 	WalFileSize            int     `json:"WalFileSize"`
 	WalDataSize            int     `json:"WalDataSize"`
 	WalLowWaterMark        int     `json:"WalLowWaterMark"`
+	SStableDegree          int     `json:"SStableDegree"`
+	SStableAllInOne        bool    `json:"SStableAllInOne"`
 }
 
 func NewConfig(filename string) *Config {
@@ -125,6 +129,8 @@ func NewConfig(filename string) *Config {
 		config.WalDataSize = WAL_DATA_SIZE
 		config.WalFileSize = WAL_FILE_SIZE
 		config.WalLowWaterMark = WAL_LOW_WATER_MARK
+		config.SStableDegree = SSTABLE_DEGREE
+		config.SStableAllInOne = SSTABLE_ALL_IN_ONE
 	} else {
 		err = json.Unmarshal(yamlFile, &config)
 		if err != nil {
