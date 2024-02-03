@@ -116,7 +116,7 @@ func main() {
 				os.Exit(0)
 			default:
 				fmt.Println("Invalid choice. Please enter a valid option.")
-				//memtable.Print()
+				memtable.Print()
 			}
 		} else {
 			fmt.Println("You have reached request limit. Please wait a bit.")

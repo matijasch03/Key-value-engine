@@ -21,6 +21,8 @@ func InitsSkipListMemTable(maxSize uint64, maxHeight int) *skipListMemTable {
 }
 
 func (table *skipListMemTable) Reset() {
+	table.data = *NewSkipList(table.data.maxHeight)
+	table.currentSize = 0
 	return
 }
 
