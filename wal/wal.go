@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -14,10 +15,10 @@ import (
 
 type Wal struct {
 	Data               []*WalEntry
-	MaxDataSize        uint32 // broj entrija
+	MaxDataSize        uint32 // number of entries one file can contain
 	Path               string
 	CurrentFileEntries uint32
-	MaxFileSize        uint32 // bajtovi
+	MaxFileSize        uint32 // number of bytes one file is limited to
 	Prefix             string
 	CurrentFilename    uint32
 	LowWatermark       uint32
@@ -57,16 +58,12 @@ func (wal *Wal) Write(key string, value []byte, tombstone byte) *WalEntry {
 	}
 
 	remainingBytes := len(newWalEntry.ToBytes())
-	print("remaningBytes: ", remainingBytes)
 	for remainingBytes > 0 {
-		print("remainingBytes: ", remainingBytes, "\n")
-		print("trenutni fajl: ", wal.CurrentFilename, "\n")
-		// Check if the number of entries in the current file exceeds the limit
 		if wal.CurrentFileEntries >= wal.MaxDataSize {
 			wal.CurrentFilename++
 			currentFile.Close()
 
-			// Open a new file
+			// open a new file
 			currentFilePath := wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(int(wal.CurrentFilename)) + ".log"
 			currentFile, err = os.OpenFile(currentFilePath, os.O_RDWR|os.O_CREATE, 0666)
 			if err != nil {
@@ -76,16 +73,14 @@ func (wal *Wal) Write(key string, value []byte, tombstone byte) *WalEntry {
 			if err != nil {
 				log.Fatal(err)
 			}
-			// Reset the entry count for the new file
+			// reset the entry count for the new file
 			wal.CurrentFileEntries = 0
 		}
 
-		// Determine how many bytes to write in the current iteration
+		// determine how many bytes to write in the current iteration
 		writeBytes := min(remainingBytes, int(wal.MaxFileSize)-int(fileInfo.Size()))
-		print("writeBytes: ", writeBytes)
-		print("maxFileSize: ", int(wal.MaxFileSize))
 
-		// Write the new entry bytes to the current file
+		// write the new entry bytes to the current file
 		currentFile.Seek(0, io.SeekEnd)
 		_, err = currentFile.Write(newWalEntry.ToBytes()[len(newWalEntry.ToBytes())-remainingBytes : len(newWalEntry.ToBytes())-remainingBytes+writeBytes])
 		if err != nil {
@@ -97,7 +92,7 @@ func (wal *Wal) Write(key string, value []byte, tombstone byte) *WalEntry {
 			wal.CurrentFilename++
 			currentFile.Close()
 
-			// Open a new file
+			// open a new file
 			currentFilePath := wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(int(wal.CurrentFilename)) + ".log"
 			currentFile, err = os.OpenFile(currentFilePath, os.O_RDWR|os.O_CREATE, 0666)
 			if err != nil {
@@ -112,7 +107,7 @@ func (wal *Wal) Write(key string, value []byte, tombstone byte) *WalEntry {
 			}
 		}
 
-		// Update counters and loop variables
+		// update counters and loop variables
 		remainingBytes -= writeBytes
 		wal.CurrentFileEntries++
 	}
@@ -127,7 +122,7 @@ func (wal *Wal) Delete(key string, tombstone byte) {
 
 	newWalEntry := NewWalEntry(tombstone)
 	newWalEntry.Write(key, nil)
-	wal.Data = append(wal.Data, newWalEntry)
+	wal.Write(key, nil, tombstone)
 
 }
 
@@ -199,42 +194,75 @@ func (wal *Wal) DeleteSegments() {
 }
 
 func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
-
 	files, _ := os.ReadDir(wal.Path + string(os.PathSeparator))
 	fileCount := len(files)
 
+	var partialEntry []byte
+	var entryBytes []byte
+
 	for i := 0; i < fileCount; i++ {
-
 		file, _ := os.Open(wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(i) + ".log")
-
 		fileInformation, err := file.Stat()
 		if err != nil {
 			panic(err)
 		}
 
 		if fileInformation.Size() == 0 {
-			return
+			file.Close()
+			continue
 		}
 
 		for {
-			walEntry, err := ReadWalEntry(file)
+			// read the entire file
+			entryFileBytes := make([]byte, wal.MaxFileSize)
+			n, err := file.Read(entryFileBytes)
 			if err == io.EOF {
 				file.Close()
 				break
 			}
-			fmt.Println(walEntry.Validate())
-			full, sizeToDelete := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
-			if full != nil {
-				if config.GlobalConfig.SStableAllInOne == false {
-					if config.GlobalConfig.SStableDegree != 0 {
-						sstable.CreateSStable_13(full, 1, config.GlobalConfig.SStableDegree)
-					} else {
-						sstable.CreateSStable(full, 1)
+			// combine with any remaining partial entry
+			partialEntry = append(partialEntry, entryFileBytes[:n]...)
+			entryBytes = partialEntry
+			// process complete entries
+			for len(entryBytes) >= 29 {
+				// extract the first 29 bytes
+				headerBytes := entryBytes[:29]
+
+				// use the information to determine wheter we have enough bytes to form whole entry
+				// if thats not the case -> read another file and pray :>
+				keySize := binary.LittleEndian.Uint64(headerBytes[13:21])
+				valueSize := binary.LittleEndian.Uint64(headerBytes[21:29])
+
+				totalSize := int(29 + keySize + valueSize)
+
+				if len(entryBytes) >= totalSize {
+					print("totalSize: ", totalSize)
+					// form an entry
+					walEntry := WalEntryFromBytes(entryBytes[:totalSize])
+					// fmt.Println(walEntry.Validate())
+					full, sizeToDelete := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
+					if full != nil {
+						if config.GlobalConfig.SStableAllInOne == false {
+							if config.GlobalConfig.SStableDegree != 0 {
+								sstable.CreateSStable_13(full, 1, config.GlobalConfig.SStableDegree)
+							} else {
+								sstable.CreateSStable(full, 1)
+							}
+						} else {
+							sstable.NewSSTable(&full, 1)
+						}
+						fmt.Println(sizeToDelete) // Ovde treba pozvati brisanje wal segmenata
+						// deleteSegmentsVarijantaKojaBrise toliko
 					}
+
+					// move both to the next entry
+					entryBytes = entryBytes[totalSize:]
+					partialEntry = partialEntry[totalSize:]
 				} else {
-					sstable.NewSSTable(&full, 1)
+					// save the partial entry for the next iteration
+					partialEntry = entryBytes
+					break
 				}
-				fmt.Println(sizeToDelete) // Ovde treba pozvati brisanje wal segmenata
 			}
 		}
 	}
