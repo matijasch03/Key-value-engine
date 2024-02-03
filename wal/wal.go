@@ -223,13 +223,18 @@ func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
 				break
 			}
 			fmt.Println(walEntry.Validate())
-			if walEntry.Tombstone == 0 {
-				full := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
-				if full != nil {
-					sstable.CreateSStable(full, 1) // treba ustanoviti kako se TACNO nazivaju sstable fajlovi
+			full, sizeToDelete := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
+			if full != nil {
+				if config.GlobalConfig.SStableAllInOne == false {
+					if config.GlobalConfig.SStableDegree != 0 {
+						sstable.CreateSStable_13(full, 1, config.GlobalConfig.SStableDegree)
+					} else {
+						sstable.CreateSStable(full, 1)
+					}
+				} else {
+					sstable.NewSSTable(&full, 1)
 				}
-			} else {
-				table.Delete(string(walEntry.Key))
+				fmt.Println(sizeToDelete) // Ovde treba pozvati brisanje wal segmenata
 			}
 		}
 	}

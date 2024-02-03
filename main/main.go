@@ -21,7 +21,6 @@ func main() {
 
 	myWal, memtable, tokenBucket, cache, bloom_filter, hll, cms, simhash := Start()
 	fmt.Println(bloom_filter, simhash) //Dodato da ne bi ispisivao gresku da nisu korisceni
-	broj := 1
 	for {
 		fmt.Println("1. GET")
 		fmt.Println("2. PUT")
@@ -70,20 +69,18 @@ func main() {
 
 				walEntry := myWal.Write(key, []byte(value), 0)
 				entry := memTable.NewMemTableEntry(key, []byte(value), 0, walEntry.Timestamp)
-				full := memtable.Add(entry)
+				full, sizeToDelete := memtable.Add(entry)
 				if full != nil {
 					if config.GlobalConfig.SStableAllInOne == false {
 						if config.GlobalConfig.SStableDegree != 0 {
 							sstable.CreateSStable_13(full, 1, config.GlobalConfig.SStableDegree)
-							broj = broj + 1
 						} else {
 							sstable.CreateSStable(full, 1)
-							broj = broj + 1
 						}
 					} else {
 						sstable.NewSSTable(&full, 1)
-						broj = broj + 1
 					}
+					fmt.Println(sizeToDelete) // Ovde treba pozvati brisanje wal segmenata
 				}
 				cache.AddItem(key, value)
 				hll.Add(key)

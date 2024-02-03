@@ -3,6 +3,7 @@ package memTable
 import (
 	"fmt"
 	"projekat_nasp/config"
+	"time"
 )
 
 /*
@@ -68,6 +69,7 @@ func FillWithParametersEntry(key string, value []byte, timestamp uint64, tombsto
 // Manages instances of mem tables
 type MemTablesManager struct {
 	tables       []MemTable
+	walSize      []int
 	maxInstances int
 	active       int
 }
@@ -80,11 +82,13 @@ func InitMemTablesHash(maxInstances int, maxSize uint64) MemTablesManager {
 		maxSize = config.MEMTABLE_SIZE
 	}
 	tables := make([]MemTable, maxInstances)
+	walSize := make([]int, maxInstances)
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitHashMemTable(maxSize)
 	}
 	memTables := MemTablesManager{
 		tables,
+		walSize,
 		maxInstances,
 		0,
 	}
@@ -102,11 +106,14 @@ func InitMemTablesBTree(maxInstances int, maxSize uint64, order uint8) MemTables
 		order = config.B_TREE_ORDER
 	}
 	tables := make([]MemTable, maxInstances)
+	walSize := make([]int, maxInstances)
+
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitBTreeMemTable(maxSize, order)
 	}
 	memTables := MemTablesManager{
 		tables,
+		walSize,
 		maxInstances,
 		0,
 	}
@@ -124,11 +131,14 @@ func InitMemTablesSkipList(maxInstances int, maxSize uint64, maxHeight int) MemT
 		maxHeight = config.SKIP_LIST_HEIGHT
 	}
 	tables := make([]MemTable, maxInstances)
+	walSize := make([]int, maxInstances)
+
 	for i := 0; i < maxInstances; i++ {
 		tables[i] = InitsSkipListMemTable(maxSize, maxHeight)
 	}
 	memTables := MemTablesManager{
 		tables,
+		walSize,
 		maxInstances,
 		0,
 	}
@@ -136,19 +146,23 @@ func InitMemTablesSkipList(maxInstances int, maxSize uint64, maxHeight int) MemT
 }
 
 // Adds entry to active memTable, if all are full returns them sorted as a sign to flush to SSTable
-func (memTables *MemTablesManager) Add(entry MemTableEntry) []MemTableEntry {
+func (memTables *MemTablesManager) Add(entry MemTableEntry) ([]MemTableEntry, int) {
 	activeTable := memTables.tables[memTables.active]
 	activeTable.Add(entry)
+	memTables.walSize[memTables.active] += 29 + len([]byte(entry.GetKey())) + len(entry.GetValue())
+	fmt.Println(memTables.walSize[memTables.active])
 	if activeTable.IsFull() {
-		if memTables.active == memTables.maxInstances-1 {
-			sorted := memTables.Sort()
-			memTables.Reset()
-			return sorted
-		} else {
-			memTables.active += 1
+		nextTable := (memTables.active + 1) % memTables.maxInstances
+		if memTables.tables[nextTable].IsFull() {
+			sorted := memTables.tables[nextTable].Sort()
+			memTables.tables[nextTable].Reset()
+			memTables.active = nextTable
+			fmt.Println(sorted)
+			return sorted, memTables.walSize[memTables.active]
 		}
+		memTables.active = nextTable
 	}
-	return nil
+	return nil, 0
 }
 
 // Resets all memtables to empty them after sort
@@ -160,12 +174,19 @@ func (memTables *MemTablesManager) Reset() {
 }
 
 func (memTables *MemTablesManager) Delete(key string) {
-	activeTable := memTables.tables[memTables.active]
-	activeTable.Delete(key)
+	memTables.Add(NewMemTableEntry(key, nil, 1, uint64(time.Now().Unix())))
 }
 
 func (memTables *MemTablesManager) Find(key string) (bool, MemTableEntry) {
-	for i := 0; i < memTables.maxInstances; i++ {
+	activeTable := memTables.tables[memTables.active]
+	found := activeTable.Find(key)
+	if found.key != "" {
+		return true, found
+	}
+	for i := memTables.active - 1; i != memTables.active; i-- {
+		if i == -1 {
+			i = memTables.maxInstances - 1
+		}
 		activeTable := memTables.tables[i]
 		found := activeTable.Find(key)
 		if found.key != "" {
@@ -178,29 +199,32 @@ func (memTables *MemTablesManager) Find(key string) (bool, MemTableEntry) {
 // Sorts content of all tables and merges them to the slice already sorted
 func (memTables *MemTablesManager) Sort() []MemTableEntry {
 	var sortedAll []MemTableEntry
-	for i := 0; i < memTables.maxInstances; i++ {
-		sorted := memTables.tables[i].Sort()
-		sortedNew := make([]MemTableEntry, 0, len(sortedAll)+len(sorted))
-		n, m := 0, 0
-		for n < len(sortedAll) && m < len(sorted) {
-			if sortedAll[n].key <= sorted[m].key {
+
+	/*
+		for i := 0; i < memTables.maxInstances; i++ {
+			sorted := memTables.tables[i].Sort()
+			sortedNew := make([]MemTableEntry, 0, len(sortedAll)+len(sorted))
+			n, m := 0, 0
+			for n < len(sortedAll) && m < len(sorted) {
+				if sortedAll[n].key <= sorted[m].key {
+					sortedNew = append(sortedNew, sortedAll[n])
+					n++
+				} else {
+					sortedNew = append(sortedNew, sorted[m])
+					m++
+				}
+			}
+			for n < len(sortedAll) {
 				sortedNew = append(sortedNew, sortedAll[n])
 				n++
-			} else {
+			}
+			for m < len(sorted) {
 				sortedNew = append(sortedNew, sorted[m])
 				m++
 			}
+			sortedAll = sortedNew
 		}
-		for n < len(sortedAll) {
-			sortedNew = append(sortedNew, sortedAll[n])
-			n++
-		}
-		for m < len(sorted) {
-			sortedNew = append(sortedNew, sorted[m])
-			m++
-		}
-		sortedAll = sortedNew
-	}
+	*/
 	return sortedAll
 }
 func (memTables *MemTablesManager) IsFull() bool {
