@@ -5,7 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
-	config "projekat_nasp/configWal"
+	config "projekat_nasp/config"
 	"projekat_nasp/memTable"
 	"projekat_nasp/sstable"
 	"sort"
