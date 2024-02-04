@@ -36,7 +36,8 @@ func (c *Compressor) Compress(keys []string) []int {
 }
 
 // SaveToFile čuva kompresovanu mapu u fajl
-func (c *Compressor) SaveToFile(filename string) error {
+func (c *Compressor) SaveToFile() error {
+	filename:="data/compressed"
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -53,7 +54,8 @@ func (c *Compressor) SaveToFile(filename string) error {
 }
 
 // LoadFromFile učitava kompresovanu mapu iz fajla
-func (c *Compressor) LoadFromFile(filename string) error {
+func (c *Compressor) LoadFromFile() error {
+	filename:="data/compressed"
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
