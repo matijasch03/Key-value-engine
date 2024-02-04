@@ -346,7 +346,6 @@ func (wal *Wal) DeleteBytesFromFiles(bytesToDelete int) {
 
 		if bytesToDelete >= fileLength {
 			// if there are more bytes to delete than the file length delete the entire file and update bytesToDelete
-			print("\nfilePath: ", filePath)
 			file.Close()
 			os.Remove(filePath)
 			bytesToDelete -= fileLength
@@ -369,6 +368,12 @@ func (wal *Wal) DeleteBytesFromFiles(bytesToDelete int) {
 
 	// updating file names
 	files, _ = os.ReadDir(wal.Path + string(os.PathSeparator))
+
+	sort.Slice(files, func(i, j int) bool {
+		fileI, _ := files[i].Info()
+		fileJ, _ := files[j].Info()
+		return fileI.ModTime().Before(fileJ.ModTime())
+	})
 	// iterating through files and changing their names based of their index
 	for index, fileInfo := range files {
 		newPath := wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(index) + ".log"
