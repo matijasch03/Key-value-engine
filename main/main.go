@@ -158,3 +158,14 @@ func Start() (*wal.Wal, memTable.MemTablesManager, *token_bucket.TokenBucket, *c
 
 	return myWal, memtable, tokenBucket, cache, bloom_filter, hll, cms, simhash
 }
+
+func asciiToText(asciiValues []int) string {
+	var result string
+
+	for _, asciiValue := range asciiValues {
+		character := fmt.Sprintf("%c", asciiValue)
+		result += character
+	}
+
+	return result
+}
