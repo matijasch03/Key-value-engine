@@ -41,7 +41,7 @@ func Test_DZ3_compression(numberKeys uint) {
 		entry := memTable.NewMemTableEntry(key, []byte(value), 0, walEntry.Timestamp)
 		full, _ := memtable.Add(entry)
 		if full != nil {
-			sstable.NewSSTable_DZ3(&full, 1, config.GlobalConfig.SStableDegree, config.GlobalConfig.SStableDegree)
+			sstable.NewSSTable_DZ3(&full, 1)
 		}
 	}
 }
@@ -65,7 +65,7 @@ func Test_DZ3_without_compression(numberKeys uint) {
 		entry := memTable.NewMemTableEntry(key, []byte(value), 0, walEntry.Timestamp)
 		full, _ := memtable.Add(entry)
 		if full != nil {
-			sstable.NewSSTable_DZ3(&full, 1, config.GlobalConfig.SStableDegree, config.GlobalConfig.SStableDegree)
+			sstable.NewSSTable_DZ3(&full, 1)
 		}
 	}
 }
