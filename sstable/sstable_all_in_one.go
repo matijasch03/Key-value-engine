@@ -195,6 +195,26 @@ func NewSSTable(data *[]memTable.MemTableEntry, level int) {
 }
 
 // dz3
+
+func NewSSTable_DZ3(data *[]memTable.MemTableEntry, level int) {
+	var sstable SSTable_Unique
+	sstable.unixTime = time.Now().UnixNano()
+	sstable.path = "data/sstable/file_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
+	file, err := os.Create(sstable.path)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	sstable.dataSize = 0
+	sstable.indexSize = 0
+	sstable.summarySize = 0
+	sstable.bFDataSize = 0
+	writeHeader(&sstable)
+
+	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(*data), FALSE_POSITIVE_RATE)
+	writeSSTable_DZ3(data, &sstable)
+}
+
 func writeSSTable_DZ3(data *[]memTable.MemTableEntry, sstable *SSTable_Unique) {
 	block_size := 2
 
