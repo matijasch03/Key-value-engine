@@ -193,3 +193,43 @@ func NewSSTable(data *[]memTable.MemTableEntry, level int) {
 	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(*data), FALSE_POSITIVE_RATE)
 	writeSSTable(data, &sstable)
 }
+
+// dz3
+func writeSSTable_DZ3(data *[]memTable.MemTableEntry, sstable *SSTable_Unique) {
+	block_size := 2
+
+	for i, node := range *data {
+		// Check if tombstone is true, if true skip the entry
+		if node.GetTombstone() == 1 {
+			continue
+		}
+
+		in := append([]byte(node.GetKey()), node.GetValue()...)
+		sstable.merkleData = append(sstable.merkleData, in)
+		in = nil
+
+		sstable.bF.Add(([]byte(node.GetKey())))
+		if i%int(block_size) == 0 {
+			sstable.blockLeaders = append(sstable.blockLeaders, node.GetKey())
+			sstable.blockIndexes = append(sstable.blockIndexes, sstable.dataSize+HEADER_SIZE)
+		}
+
+		recordByte := make([]byte, KEY_SIZE_LEN+VALUE_SIZE_LEN+TIMESTAMP_LEN+TOMBSTONE_LEN)
+
+		binary.LittleEndian.PutUint64(recordByte[0:KEY_SIZE_LEN], uint64(len([]byte(node.GetKey()))))
+		binary.LittleEndian.PutUint64(recordByte[KEY_SIZE_LEN:KEY_SIZE_LEN+VALUE_SIZE_LEN], uint64(len(node.GetValue())))
+		binary.LittleEndian.PutUint64(recordByte[KEY_SIZE_LEN+VALUE_SIZE_LEN:KEY_SIZE_LEN+VALUE_SIZE_LEN+TIMESTAMP_LEN], uint64(node.GetTimeStamp()))
+		recordByte[KEY_SIZE_LEN+VALUE_SIZE_LEN+TIMESTAMP_LEN] = byte(node.GetTombstone())
+
+		copy(recordByte[KEY_VALUE_START:KEY_VALUE_START+len([]byte(node.GetKey()))], []byte(node.GetKey()))
+		copy(recordByte[KEY_VALUE_START+len([]byte(node.GetKey())):KEY_VALUE_START+len([]byte(node.GetKey()))+len(node.GetValue())], node.GetValue())
+
+		writeBlock(&recordByte, sstable.path)
+	}
+
+	writeIndex(sstable)
+	writeHeader(sstable)
+	writeSummary(sstable)
+	writeBloomFilter(sstable)
+	merkletree.BuildMerkleTree(sstable.merkleData, sstable.unixTime)
+}
