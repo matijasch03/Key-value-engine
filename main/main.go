@@ -80,7 +80,8 @@ func main() {
 					} else {
 						sstable.NewSSTable(&full, 1)
 					}
-					fmt.Println(sizeToDelete) // Ovde treba pozvati brisanje wal segmenata
+					//fmt.Println(sizeToDelete) // Ovde treba pozvati brisanje wal segmenata
+					myWal.DeleteBytesFromFiles(sizeToDelete)
 				}
 				cache.AddItem(key, value)
 				hll.Add(key)

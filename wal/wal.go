@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	config "projekat_nasp/config"
@@ -27,7 +28,12 @@ type Wal struct {
 func NewWal() *Wal {
 
 	files, _ := os.ReadDir("logs" + string(os.PathSeparator))
-	currentFilename := len(files)
+	var currentFilename int
+	if len(files) == 0 {
+		currentFilename = len(files)
+	} else {
+		currentFilename = len(files) - 1
+	}
 
 	wal := Wal{
 		Path:               "logs",
@@ -59,7 +65,7 @@ func (wal *Wal) Write(key string, value []byte, tombstone byte) *WalEntry {
 
 	remainingBytes := len(newWalEntry.ToBytes())
 	for remainingBytes > 0 {
-		if wal.CurrentFileEntries >= wal.MaxDataSize {
+		if wal.CurrentFileEntries > wal.MaxDataSize {
 			wal.CurrentFilename++
 			currentFile.Close()
 
@@ -197,6 +203,10 @@ func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
 	files, _ := os.ReadDir(wal.Path + string(os.PathSeparator))
 	fileCount := len(files)
 
+	// after recovery some entries in log files could no longer be needed
+	// variable used to determine how many bytes we can safely delete from log files after recovery
+	toDelete := 0
+
 	var partialEntry []byte
 	var entryBytes []byte
 
@@ -210,6 +220,29 @@ func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
 		if fileInformation.Size() == 0 {
 			file.Close()
 			continue
+		}
+
+		// if we are reading the first log file we should first skip bytes meant for deletion
+		if i == 0 {
+			remainingFilePath := "./data/wal/remaining_bytes.log"
+			remainingBytesFile, err := os.Open(remainingFilePath)
+			if err == nil {
+				// loading number of bytes we should skip
+				remainingBytesBytes, err := ioutil.ReadAll(remainingBytesFile)
+				remainingBytesFile.Close()
+				if err != nil {
+					fmt.Println("Error reading remaining_bytes.log:", err)
+					return
+				}
+				// parsing number of bytes we should skip
+				remainingBytes, err := strconv.Atoi(string(remainingBytesBytes))
+				if err != nil {
+					fmt.Println("Error parsing remaining_bytes.log:", err)
+					return
+				}
+				remainingBytesToSkip := int64(remainingBytes)
+				file.Seek(remainingBytesToSkip, io.SeekStart)
+			}
 		}
 
 		for {
@@ -236,11 +269,12 @@ func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
 				totalSize := int(29 + keySize + valueSize)
 
 				if len(entryBytes) >= totalSize {
-					print("totalSize: ", totalSize)
 					// form an entry
 					walEntry := WalEntryFromBytes(entryBytes[:totalSize])
 					// fmt.Println(walEntry.Validate())
 					full, sizeToDelete := table.Add(memTable.NewMemTableEntry(string(walEntry.Key), walEntry.Value, walEntry.Tombstone, walEntry.Timestamp))
+					// constantly adding how many bytes have been flushed so we can later on after full recovery simply delete no more needed entry bytes from log files
+					toDelete += sizeToDelete
 					if full != nil {
 						if config.GlobalConfig.SStableAllInOne == false {
 							if config.GlobalConfig.SStableDegree != 0 {
@@ -251,10 +285,7 @@ func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
 						} else {
 							sstable.NewSSTable(&full, 1)
 						}
-						fmt.Println(sizeToDelete) // Ovde treba pozvati brisanje wal segmenata
-						// deleteSegmentsVarijantaKojaBrise toliko
 					}
-
 					// move both to the next entry
 					entryBytes = entryBytes[totalSize:]
 					partialEntry = partialEntry[totalSize:]
@@ -265,5 +296,84 @@ func (wal *Wal) Recovery(table *memTable.MemTablesManager) {
 				}
 			}
 		}
+	}
+	// if there is any bytes of log entries that should be deleted we delete them
+	if toDelete != 0 {
+		wal.DeleteBytesFromFiles(toDelete)
+	}
+}
+
+func (wal *Wal) DeleteBytesFromFiles(bytesToDelete int) {
+	files, _ := os.ReadDir(wal.Path + string(os.PathSeparator))
+	fileCount := len(files)
+	var remainingBytesToSkip int64
+
+	// we should also count bytes that we skipped from the beggining
+	remainingFilePath := "./data/wal/remaining_bytes.log"
+	remainingBytesFile, err := os.Open(remainingFilePath)
+	if err == nil {
+		// loading number of bytes we should skip
+		remainingBytesBytes, err := ioutil.ReadAll(remainingBytesFile)
+		remainingBytesFile.Close()
+		if err != nil {
+			fmt.Println("Error reading remaining_bytes.log:", err)
+			return
+		}
+		// parsing number of bytes we should skip
+		remainingBytes, err := strconv.Atoi(string(remainingBytesBytes))
+		if err != nil {
+			fmt.Println("Error parsing remaining_bytes.log:", err)
+			return
+		}
+		remainingBytesToSkip = int64(remainingBytes)
+	}
+	bytesToDelete += int(remainingBytesToSkip)
+
+	for i := 0; i < fileCount; i++ {
+		filePath := wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(i) + ".log"
+
+		file, err := os.OpenFile(filePath, os.O_RDWR, 0666)
+		if err != nil {
+			panic(err)
+		}
+
+		fileInfo, err := file.Stat()
+		if err != nil {
+			panic(err)
+		}
+
+		fileLength := int(fileInfo.Size())
+
+		if bytesToDelete >= fileLength {
+			// if there are more bytes to delete than the file length delete the entire file and update bytesToDelete
+			print("\nfilePath: ", filePath)
+			file.Close()
+			os.Remove(filePath)
+			bytesToDelete -= fileLength
+		} else {
+			// write remaining bytes in separate file so when in need we can read how many bytes we should precede
+			if bytesToDelete >= 0 {
+				remainingFilePath := "./data/wal/remaining_bytes.log"
+				remainingFile, err := os.OpenFile(remainingFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+				if err != nil {
+					panic(err)
+				}
+				remainingFile.WriteString(strconv.Itoa(bytesToDelete))
+				remainingFile.Close()
+			}
+
+			file.Close()
+			break
+		}
+	}
+
+	// updating file names
+	files, _ = os.ReadDir(wal.Path + string(os.PathSeparator))
+	// iterating through files and changing their names based of their index
+	for index, fileInfo := range files {
+		newPath := wal.Path + string(os.PathSeparator) + wal.Prefix + strconv.Itoa(index) + ".log"
+		oldPath := wal.Path + string(os.PathSeparator) + fileInfo.Name()
+		os.Rename(oldPath, newPath)
+		wal.CurrentFilename = uint32(index)
 	}
 }
