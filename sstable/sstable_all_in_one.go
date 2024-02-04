@@ -199,7 +199,7 @@ func NewSSTable(data *[]memTable.MemTableEntry, level int) {
 func NewSSTable_DZ3(data *[]memTable.MemTableEntry, level int, summarySparsity, indexSparsity int) {
 	var sstable SSTable_Unique
 	sstable.unixTime = time.Now().UnixNano()
-	sstable.path = "data/sstable/file_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
+	sstable.path = "data/sstable/testcompressed_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
 	file, err := os.Create(sstable.path)
 	if err != nil {
 		panic(err)
