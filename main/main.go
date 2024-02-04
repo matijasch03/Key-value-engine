@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
+	"math/rand"
 	"os"
 	"projekat_nasp/bloom_filter"
 	"projekat_nasp/cache"
@@ -13,8 +15,11 @@ import (
 	"projekat_nasp/simhash"
 	"projekat_nasp/sstable"
 	"projekat_nasp/token_bucket"
+	"projekat_nasp/util"
 	"projekat_nasp/wal"
+	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -29,6 +34,8 @@ func main() {
 		fmt.Println("5. Aproximate cardinality")
 		fmt.Println("6. Compaction")
 		fmt.Println("7. Exit")
+		fmt.Println("8. With Compaction")
+		fmt.Println("9. Without compaction")
 
 		fmt.Print("Enter your choice: ")
 
@@ -129,6 +136,10 @@ func main() {
 				countMinSketch.WriteGob("./data/count_min_sketch/cms.gob", cms)
 				//simhash.SerializeSH()
 				os.Exit(0)
+			case 8:
+				Test_DZ3_compression(100)
+			case 9:
+				Test_DZ3_without_compression(100)
 			default:
 				fmt.Println("Invalid choice. Please enter a valid option.")
 				memtable.Print()
@@ -176,4 +187,142 @@ func asciiToText(asciiValues []int) string {
 	}
 
 	return result
+}
+
+func Test_DZ3_compression(numberKeys uint) {
+	newCompressor := NewCompressor()
+	newCompressor.LoadFromFile()
+	myWal := wal.NewWal()
+	var memtable memTable.MemTablesManager
+	switch config.GlobalConfig.StructureType {
+	case "hashmap":
+		memtable = memTable.InitMemTablesHash(config.GlobalConfig.MaxTables, uint64(config.GlobalConfig.MemtableSize))
+	case "btree":
+		memtable = memTable.InitMemTablesBTree(config.GlobalConfig.MaxTables, uint64(config.GlobalConfig.MemtableSize), uint8(config.GlobalConfig.BTreeOrder))
+	case "skiplist":
+		memtable = memTable.InitMemTablesSkipList(config.GlobalConfig.MaxTables, uint64(config.GlobalConfig.MemtableSize), config.GlobalConfig.SkipListHeight)
+	}
+
+	keyList := generateKeyList(int(numberKeys))
+	for i := 0; i < 100000; i++ {
+		key := keyList[i%100]
+		keyList := newCompressor.Compress([]string{key})
+		//globalna kompresija
+		if len(keyList) == 0 {
+			fmt.Println("empty dict")
+		} else {
+			key = strconv.Itoa(keyList[0])
+		}
+		value := util.RandomString(i%100, i)
+		walEntry := myWal.Write(key, []byte(value), 0)
+		entry := memTable.NewMemTableEntry(key, []byte(value), 0, walEntry.Timestamp)
+		full, _ := memtable.Add(entry)
+		if full != nil {
+			sstable.NewSSTable_DZ3(&full, 1)
+		}
+	}
+}
+func Test_DZ3_without_compression(numberKeys uint) {
+	myWal := wal.NewWal()
+	var memtable memTable.MemTablesManager
+	switch config.GlobalConfig.StructureType {
+	case "hashmap":
+		memtable = memTable.InitMemTablesHash(config.GlobalConfig.MaxTables, uint64(config.GlobalConfig.MemtableSize))
+	case "btree":
+		memtable = memTable.InitMemTablesBTree(config.GlobalConfig.MaxTables, uint64(config.GlobalConfig.MemtableSize), uint8(config.GlobalConfig.BTreeOrder))
+	case "skiplist":
+		memtable = memTable.InitMemTablesSkipList(config.GlobalConfig.MaxTables, uint64(config.GlobalConfig.MemtableSize), config.GlobalConfig.SkipListHeight)
+	}
+
+	keyList := generateKeyList(int(numberKeys))
+	for i := 0; i < 100000; i++ {
+		key := keyList[i%100]
+		value := util.RandomString(i%100, i)
+		walEntry := myWal.Write(key, []byte(value), 0)
+		entry := memTable.NewMemTableEntry(key, []byte(value), 0, walEntry.Timestamp)
+		full, _ := memtable.Add(entry)
+		if full != nil {
+			sstable.NewSSTable_DZ3(&full, 1)
+		}
+	}
+}
+
+func generateKeyList(numKeys int) []string {
+	keys := make([]string, numKeys)
+	rand.Seed(time.Now().UnixNano())
+
+	for i := 0; i < numKeys; i++ {
+		keys[i] = fmt.Sprintf("key%d", i)
+	}
+
+	rand.Shuffle(len(keys), func(i, j int) {
+		keys[i], keys[j] = keys[j], keys[i]
+	})
+
+	return keys
+}
+
+type Compressor struct {
+	Dictionary map[string]int
+}
+
+// NewCompressor kreira novi objekat Compressor
+func NewCompressor() *Compressor {
+	return &Compressor{
+		Dictionary: make(map[string]int),
+	}
+}
+
+// Compress kompresuje niz ključeva koristeći dictionary encoding
+func (c *Compressor) Compress(keys []string) []int {
+	var result []int
+
+	for _, key := range keys {
+		// Proveravamo da li ključ već postoji u rečniku
+		if _, ok := c.Dictionary[key]; !ok {
+			// Ako ne postoji, dodajemo ga u rečnik sa sledećim slobodnim brojem
+			c.Dictionary[key] = len(c.Dictionary)
+		}
+
+		// Dodajemo numeričku vrednost ključa u rezultat
+		result = append(result, c.Dictionary[key])
+	}
+
+	return result
+}
+
+// SaveToFile čuva kompresovanu mapu u fajl
+func (c *Compressor) SaveToFile() error {
+	filename := "data/globalCompressed.gob"
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(c.Dictionary)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// LoadFromFile učitava kompresovanu mapu iz fajla
+func (c *Compressor) LoadFromFile() error {
+	filename := "data/globalCompressed.gob"
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	decoder := gob.NewDecoder(file)
+	err = decoder.Decode(&c.Dictionary)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
