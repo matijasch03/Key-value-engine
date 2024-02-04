@@ -158,7 +158,9 @@ func (memTables *MemTablesManager) Add(entry MemTableEntry) ([]MemTableEntry, in
 			memTables.tables[nextTable].Reset()
 			memTables.active = nextTable
 			fmt.Println(sorted)
-			return sorted, memTables.walSize[memTables.active]
+			toDelete := memTables.walSize[memTables.active]
+			memTables.walSize[memTables.active] = 0
+			return sorted, toDelete
 		}
 		memTables.active = nextTable
 	}
