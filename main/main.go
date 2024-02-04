@@ -47,6 +47,7 @@ func main() {
 
 				if foundMemTable {
 					fmt.Println("Nasao u memtable-u: ", valueMemTable)
+					cache.AddItem(valueMemTable.GetKey(), string(valueMemTable.GetValue()))
 				} else {
 					foundCache, valueCache := cache.GetByKey(key)
 					if foundCache {
@@ -58,7 +59,7 @@ func main() {
 						} else {
 							for i := 0; i < len(entry); i++ {
 								fmt.Println("Nasao u sstable-u: ", entry[i])
-								cache.AddItem(entry[i].GetKey(), entry[i].GetValue())
+								cache.AddItem(entry[i].GetKey(), string(entry[i].GetValue()))
 							}
 						}
 					}
