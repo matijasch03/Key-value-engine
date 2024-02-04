@@ -196,10 +196,12 @@ func NewSSTable(data *[]memTable.MemTableEntry, level int) {
 
 // dz3
 
-func NewSSTable_DZ3(data *[]memTable.MemTableEntry, level int, summarySparsity, indexSparsity int) {
+// dz3
+
+func NewSSTable_DZ3(data *[]memTable.MemTableEntry, level int) {
 	var sstable SSTable_Unique
 	sstable.unixTime = time.Now().UnixNano()
-	sstable.path = "data/sstable/testcompressed_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
+	sstable.path = "data/sstable/test_compresion_" + fmt.Sprint(sstable.unixTime) + "_" + fmt.Sprint(level) + ".db"
 	file, err := os.Create(sstable.path)
 	if err != nil {
 		panic(err)
@@ -212,11 +214,11 @@ func NewSSTable_DZ3(data *[]memTable.MemTableEntry, level int, summarySparsity, 
 	writeHeader(&sstable)
 
 	sstable.bF = *bloom_filter.NewBloomFilterUnique(len(*data), FALSE_POSITIVE_RATE)
-	writeSSTable_DZ3(data, &sstable, summarySparsity, indexSparsity)
+	writeSSTable_DZ3(data, &sstable)
 }
 
-func writeSSTable_DZ3(data *[]memTable.MemTableEntry, sstable *SSTable_Unique, summarySparsity, indexSparsity int) {
-	//block_size_ := 2
+func writeSSTable_DZ3(data *[]memTable.MemTableEntry, sstable *SSTable_Unique) {
+	block_size := 2
 
 	for i, node := range *data {
 		if node.GetTombstone() == 1 {
@@ -228,17 +230,20 @@ func writeSSTable_DZ3(data *[]memTable.MemTableEntry, sstable *SSTable_Unique, s
 		in = nil
 
 		sstable.bF.Add(([]byte(node.GetKey())))
-		if i%summarySparsity == 0 {
+		if i%int(block_size) == 0 {
 			sstable.blockLeaders = append(sstable.blockLeaders, node.GetKey())
 			sstable.blockIndexes = append(sstable.blockIndexes, sstable.dataSize+HEADER_SIZE)
 		}
 
-		recordByte := make([]byte, KEY_SIZE_LEN+VALUE_SIZE_LEN+TIMESTAMP_LEN+TOMBSTONE_LEN)
+		// Encode the size of the value using variable-length encoding
+		sizeEncoded := encodeVarInt(uint64(len(node.GetValue())))
+
+		recordByte := make([]byte, KEY_SIZE_LEN+len(sizeEncoded)+TIMESTAMP_LEN+TOMBSTONE_LEN+len(node.GetValue()))
 
 		binary.LittleEndian.PutUint64(recordByte[0:KEY_SIZE_LEN], uint64(len([]byte(node.GetKey()))))
-		binary.LittleEndian.PutUint64(recordByte[KEY_SIZE_LEN:KEY_SIZE_LEN+VALUE_SIZE_LEN], uint64(len(node.GetValue())))
-		binary.LittleEndian.PutUint64(recordByte[KEY_SIZE_LEN+VALUE_SIZE_LEN:KEY_SIZE_LEN+VALUE_SIZE_LEN+TIMESTAMP_LEN], uint64(node.GetTimeStamp()))
-		recordByte[KEY_SIZE_LEN+VALUE_SIZE_LEN+TIMESTAMP_LEN] = byte(node.GetTombstone())
+		copy(recordByte[KEY_SIZE_LEN:KEY_SIZE_LEN+len(sizeEncoded)], sizeEncoded)
+		binary.LittleEndian.PutUint64(recordByte[KEY_SIZE_LEN+len(sizeEncoded):KEY_SIZE_LEN+len(sizeEncoded)+TIMESTAMP_LEN], uint64(node.GetTimeStamp()))
+		recordByte[KEY_SIZE_LEN+len(sizeEncoded)+TIMESTAMP_LEN] = byte(node.GetTombstone())
 
 		copy(recordByte[KEY_VALUE_START:KEY_VALUE_START+len([]byte(node.GetKey()))], []byte(node.GetKey()))
 		copy(recordByte[KEY_VALUE_START+len([]byte(node.GetKey())):KEY_VALUE_START+len([]byte(node.GetKey()))+len(node.GetValue())], node.GetValue())
@@ -246,42 +251,20 @@ func writeSSTable_DZ3(data *[]memTable.MemTableEntry, sstable *SSTable_Unique, s
 		writeBlock(&recordByte, sstable.path)
 	}
 
-	writeIndexWithSparsity(sstable, indexSparsity)
+	writeIndex(sstable)
 	writeHeader(sstable)
-	writeSummaryWithSparsity(sstable, summarySparsity)
+	writeSummary(sstable)
 	writeBloomFilter(sstable)
 	merkletree.BuildMerkleTree(sstable.merkleData, sstable.unixTime)
 }
 
-func writeIndexWithSparsity(sstable *SSTable_Unique, indexSparsity int) {
-	//block_size_ := 2
-	for i, key := range sstable.blockLeaders {
-		if i%indexSparsity == 0 {
-			sstable.indexLeaders = append(sstable.indexLeaders, key)
-			sstable.IndexIndexes = append(sstable.IndexIndexes, sstable.dataSize+HEADER_SIZE+sstable.indexSize)
-		}
-		recordByte := make([]byte, K_SIZE+len([]byte(key))+VALUE_SIZE_LEN)
-		sstable.indexSize += uint64(len(recordByte))
-		binary.LittleEndian.PutUint64(recordByte[0:K_SIZE], uint64(len([]byte(key))))
-		copy(recordByte[K_SIZE:K_SIZE+len([]byte(key))], []byte(key))
-		binary.LittleEndian.PutUint64(recordByte[K_SIZE+len([]byte(key)):], sstable.blockIndexes[i])
-
-		writeBlock(&recordByte, sstable.path)
+// Function to encode a uint64 value using variable-length encoding
+func encodeVarInt(value uint64) []byte {
+	var encoded []byte
+	for value >= 0x80 {
+		encoded = append(encoded, byte(value)|0x80)
+		value >>= 7
 	}
-	sstable.summary = sstable.dataSize + sstable.indexSize + HEADER_SIZE
-}
-
-func writeSummaryWithSparsity(sstable *SSTable_Unique, summarySparsity int) {
-	for i, key := range sstable.indexLeaders {
-		if i%summarySparsity == 0 {
-			recordByte := make([]byte, K_SIZE+len([]byte(key))+VALUE_SIZE_LEN)
-			sstable.summarySize += uint64(len(recordByte))
-			binary.LittleEndian.PutUint64(recordByte[0:K_SIZE], uint64(len([]byte(key))))
-			copy(recordByte[K_SIZE:K_SIZE+len([]byte(key))], []byte(key))
-			binary.LittleEndian.PutUint64(recordByte[K_SIZE+len([]byte(key)):], sstable.IndexIndexes[i])
-
-			writeBlock(&recordByte, sstable.path)
-		}
-	}
-	sstable.bFPosition = sstable.summary + sstable.summarySize
+	encoded = append(encoded, byte(value))
+	return encoded
 }
