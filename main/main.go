@@ -46,15 +46,21 @@ func main() {
 				foundMemTable, valueMemTable := memtable.Find(key)
 
 				if foundMemTable {
-					fmt.Println(valueMemTable)
+					fmt.Println("Nasao u memtable-u: ", valueMemTable)
 				} else {
 					foundCache, valueCache := cache.GetByKey(key)
 					if foundCache {
-						fmt.Println(valueCache)
+						fmt.Println("Nasao u cache-u: ", valueCache)
 					} else {
-
-						//pretraziti sstable, i onda dodati u cache
-
+						entry := sstable.Main_search([]string{key})
+						if len(entry) == 0 {
+							fmt.Println("Neuspesna pretraga")
+						} else {
+							for i := 0; i < len(entry); i++ {
+								fmt.Println("Nasao u sstable-u: ", entry[i])
+								cache.AddItem(entry[i].GetKey(), entry[i].GetValue())
+							}
+						}
 					}
 				}
 
@@ -115,8 +121,8 @@ func main() {
 				}
 			case 7: //EXIT
 				fmt.Println("Exiting...")
-				data := memtable.Sort()
-				sstable.CreateSStable(data, 1)
+				//data := memtable.Sort()
+				//sstable.CreateSStable(data, 1)
 				//bloom_filter.SaveToFile("data/bloom_filter/bf.gob")
 				hll.SacuvajHLL("./data/hyperloglog/hll.gob")
 				countMinSketch.WriteGob("./data/count_min_sketch/cms.gob", cms)

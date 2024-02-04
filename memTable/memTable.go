@@ -194,41 +194,25 @@ func (memTables *MemTablesManager) Find(key string) (bool, MemTableEntry) {
 		if found.key != "" {
 			return true, found
 		}
+		if i == memTables.active {
+			break
+		}
 	}
 	return false, MemTableEntry{}
 }
 
 // Sorts content of all tables and merges them to the slice already sorted
-func (memTables *MemTablesManager) Sort() []MemTableEntry {
-	var sortedAll []MemTableEntry
+func (memTables *MemTablesManager) Sort() [][]MemTableEntry {
+	var sortedAll [][]MemTableEntry
 
-	/*
-		for i := 0; i < memTables.maxInstances; i++ {
-			sorted := memTables.tables[i].Sort()
-			sortedNew := make([]MemTableEntry, 0, len(sortedAll)+len(sorted))
-			n, m := 0, 0
-			for n < len(sortedAll) && m < len(sorted) {
-				if sortedAll[n].key <= sorted[m].key {
-					sortedNew = append(sortedNew, sortedAll[n])
-					n++
-				} else {
-					sortedNew = append(sortedNew, sorted[m])
-					m++
-				}
-			}
-			for n < len(sortedAll) {
-				sortedNew = append(sortedNew, sortedAll[n])
-				n++
-			}
-			for m < len(sorted) {
-				sortedNew = append(sortedNew, sorted[m])
-				m++
-			}
-			sortedAll = sortedNew
-		}
-	*/
+	for i := 0; i < memTables.maxInstances; i++ {
+		sorted := memTables.tables[i].Sort()
+		sortedAll = append(sortedAll, sorted)
+	}
+
 	return sortedAll
 }
+
 func (memTables *MemTablesManager) IsFull() bool {
 	return false
 }
