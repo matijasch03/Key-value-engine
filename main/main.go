@@ -33,9 +33,11 @@ func main() {
 		fmt.Println("4. Aproximate frequency of key")
 		fmt.Println("5. Aproximate cardinality")
 		fmt.Println("6. Compaction")
-		fmt.Println("7. Exit")
-		fmt.Println("8. With Compaction")
-		fmt.Println("9. Without compaction")
+		fmt.Println("7. Prefix scan")
+		fmt.Println("8. Range scan")
+		fmt.Println("9. With compression")
+		fmt.Println("10. Without compression")
+		fmt.Println("11. Exit")
 
 		fmt.Print("Enter your choice: ")
 
@@ -127,7 +129,23 @@ func main() {
 				} else {
 					lsm_tree.LeveledCompaction()
 				}
-			case 7: //EXIT
+			case 7:
+				fmt.Print("Enter a prefix: ")
+				var c string
+				fmt.Scan(&c)
+				fmt.Print("Enter a page number: ")
+				var a int
+				fmt.Scan(&a)
+				fmt.Print("Enter a page size: ")
+				var b int
+				fmt.Scan(&b)
+				memtable.PrefixScan(c, a, b)
+			case 9:
+				Test_DZ3_compression(100)
+			case 10:
+				Test_DZ3_without_compression(100)
+
+			case 11: //EXIT
 				fmt.Println("Exiting...")
 				//data := memtable.Sort()
 				//sstable.CreateSStable(data, 1)
@@ -136,16 +154,11 @@ func main() {
 				countMinSketch.WriteGob("./data/count_min_sketch/cms.gob", cms)
 				//simhash.SerializeSH()
 				os.Exit(0)
-			case 8:
-				Test_DZ3_compression(100)
-			case 9:
-				Test_DZ3_without_compression(100)
 			default:
 				fmt.Println("Invalid choice. Please enter a valid option.")
-				memtable.Print()
+				//memtable.Print()
 			}
-		} else {
-			fmt.Println("You have reached request limit. Please wait a bit.")
+
 		}
 	}
 }
