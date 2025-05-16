@@ -199,7 +199,7 @@ Scripts are available to:
 
 - Programming language: Golang
 
-## 👤 Parts done mostly by [matijasch03] (https://github.com/matijasch03)
+## 👤 Parts done mostly by [matijasch03](https://github.com/matijasch03)
 - Count Min Sketch (used to estimate frequencies of elements in a data stream using limited memory)
 - Cache (the lowest and the fastest memory in which the key is first sought)
 - Iterator operations
